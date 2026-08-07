@@ -1,0 +1,21 @@
+# Gradle & Android
+.gradle/
+build/
+app/build/
+*.apk
+*.aar
+*.keystore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# IDE & System
+.idea/
+*.iml
+.DS_Store
+.vscode/
