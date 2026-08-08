@@ -1,0 +1,103 @@
+{
+  "resourceType": "Bundle",
+  "id": "sakhicare-sample-bundle-001",
+  "type": "collection",
+  "timestamp": "2026-08-10T02:00:00Z",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:p001-sunita-devi",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "p001",
+        "active": true,
+        "name": [
+          {
+            "use": "official",
+            "family": "Devi",
+            "given": [
+              "Sunita"
+            ]
+          }
+        ],
+        "gender": "female",
+        "address": [
+          {
+            "city": "Rampur",
+            "district": "Varanasi",
+            "state": "Uttar Pradesh",
+            "country": "India"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:obs001-blood-pressure",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs001",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "85354-9",
+              "display": "Blood pressure panel with all children optional"
+            }
+          ],
+          "text": "Blood Pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:p001-sunita-devi"
+        },
+        "effectiveDateTime": "2026-08-10T02:00:00Z",
+        "component": [
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8480-6",
+                  "display": "Systolic blood pressure"
+                }
+              ]
+            },
+            "valueQuantity": {
+              "value": 145,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          },
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8462-4",
+                  "display": "Diastolic blood pressure"
+                }
+              ]
+            },
+            "valueQuantity": {
+              "value": 95,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
