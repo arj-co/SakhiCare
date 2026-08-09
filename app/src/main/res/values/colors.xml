@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="teal_primary">#00796B</color>
+    <color name="teal_dark">#004D40</color>
+    <color name="teal_light">#E0F2F1</color>
+    <color name="red_danger">#D32F2F</color>
+    <color name="amber_warning">#F57C00</color>
+    <color name="green_success">#388E3C</color>
+</resources>
