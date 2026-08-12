@@ -9,7 +9,7 @@ package com.sakhicare.app.data.db
  *   for end-to-end local SQLite database encryption using Android Keystore passphrase.
  */
 object AppDatabasePlaceholder {
-    const name = "sakhicare_encrypted.db"
+    const val DB_NAME = "sakhicare_encrypted.db"
     
     fun getEncryptedDatabaseStatus(): String {
         return "Room + SQLCipher Placeholder Initialized (Encryption Key: Managed via Android Keystore Stub)"

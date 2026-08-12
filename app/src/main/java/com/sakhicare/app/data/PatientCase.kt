@@ -1,5 +1,10 @@
 package com.sakhicare.app.data
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
 enum class RiskLevel {
     RED,
     AMBER,
@@ -11,7 +16,10 @@ data class DangerSigns(
     val fever: Boolean = false,
     val headache: Boolean = false,
     val reducedFetalMovement: Boolean = false
-)
+) {
+    fun hasAny(): Boolean = bleeding || fever || headache || reducedFetalMovement
+    fun count(): Int = listOf(bleeding, fever, headache, reducedFetalMovement).count { it }
+}
 
 data class PatientCase(
     val id: String,
@@ -21,13 +29,42 @@ data class PatientCase(
     val haemoglobin: String,
     val dangerSigns: DangerSigns,
     val riskLevel: RiskLevel,
-    val assessmentDate: String = "10 Aug 2026",
+    val assessmentTimestamp: Long = System.currentTimeMillis(),
     val syncStatus: String = "Pending"
 ) {
+    /** Formatted date string like "18 Aug 2026, 1:40 PM" */
+    val formattedDate: String
+        get() {
+            val sdf = SimpleDateFormat("dd MMM yyyy, h:mm a", Locale.ENGLISH)
+            return sdf.format(Date(assessmentTimestamp))
+        }
+
+    /** Relative time like "2 min ago", "1 hour ago", "Today at 1:40 PM" */
+    val relativeTime: String
+        get() {
+            val now = System.currentTimeMillis()
+            val diff = now - assessmentTimestamp
+            val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
+            val hours = TimeUnit.MILLISECONDS.toHours(diff)
+            val days = TimeUnit.MILLISECONDS.toDays(diff)
+
+            return when {
+                minutes < 1 -> "Just now"
+                minutes < 60 -> "${minutes} min ago"
+                hours < 24 -> "${hours}h ago"
+                days < 2 -> "Yesterday"
+                days < 7 -> "${days} days ago"
+                else -> {
+                    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
+                    sdf.format(Date(assessmentTimestamp))
+                }
+            }
+        }
+
     companion object {
         fun calculateRisk(dangerSigns: DangerSigns, bloodPressure: String): RiskLevel {
             val isHighBp = parseIsHighBp(bloodPressure)
-            
+
             return when {
                 dangerSigns.bleeding || isHighBp -> RiskLevel.RED
                 dangerSigns.fever || dangerSigns.headache -> RiskLevel.AMBER
@@ -44,30 +81,5 @@ data class PatientCase(
             }
             return false
         }
-
-        val sampleCases = listOf(
-            PatientCase(
-                id = "SC-001",
-                patientName = "Sunita Devi",
-                village = "Rampur",
-                bloodPressure = "145/95",
-                haemoglobin = "10.2 g/dL",
-                dangerSigns = DangerSigns(bleeding = false, fever = true, headache = true),
-                riskLevel = RiskLevel.RED,
-                assessmentDate = "09 Aug 2026",
-                syncStatus = "Synced"
-            ),
-            PatientCase(
-                id = "SC-002",
-                patientName = "Meena Kumari",
-                village = "Sitapur",
-                bloodPressure = "118/78",
-                haemoglobin = "11.8 g/dL",
-                dangerSigns = DangerSigns(),
-                riskLevel = RiskLevel.GREEN,
-                assessmentDate = "08 Aug 2026",
-                syncStatus = "Synced"
-            )
-        )
     }
 }
