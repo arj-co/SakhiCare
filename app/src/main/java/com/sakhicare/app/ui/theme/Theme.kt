@@ -6,16 +6,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = TealPrimary,
+    primary = Primary,
     onPrimary = Color.White,
-    primaryContainer = TealLight,
-    onPrimaryContainer = TealDark,
-    secondary = TealDark,
+    primaryContainer = PrimaryLight,
+    onPrimaryContainer = PrimaryDark,
+    secondary = AccentIndigo,
     onSecondary = Color.White,
-    background = TealBackground,
-    surface = Color.White,
-    onBackground = TextDark,
-    onSurface = TextDark,
+    background = BackgroundSoft,
+    surface = SurfaceWhite,
+    onBackground = Neutral900,
+    onSurface = Neutral900,
+    outline = Neutral200,
+    surfaceVariant = Neutral50,
 )
 
 @Composable
