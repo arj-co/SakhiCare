@@ -5,6 +5,7 @@ app/build/
 *.apk
 *.aar
 *.keystore
+local.properties
 
 # Python
 __pycache__/

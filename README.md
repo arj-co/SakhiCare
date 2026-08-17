@@ -164,12 +164,13 @@ Verify backend health at: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/h
 
 The current repository provides a clean architecture and UI starter template. The following components are explicitly defined as future production work:
 
+- [x] **On-Device Speech-To-Text (STT / SST)** — Natural language voice input assistant for ANMs/ASHAs to dictate patient details, vitals, and danger signs hands-free.
+- [x] **Full FHIR R4 Integration Engine** — Automated bi-directional converter mapping SakhiCare assessment payloads into standard HL7 FHIR `Patient`, `Observation` (LOINC 85354-9 BP, 718-7 Hb), and `Condition` bundles.
+- [x] **FastAPI Sync Server & Pytest Suite** — High-performance REST sync server with `/sync`, `/cases`, `/fhir/export/{id}`, `/voice-parse` endpoints and automated test suite.
 - [ ] **SQLCipher Integration** — Encrypt Room database using real passphrase keys generated from Android Keystore.
 - [ ] **WorkManager Exponential Backoff Sync** — Real HTTP transport sync engine using Retrofit + WorkManager retry policies.
-- [ ] **On-Device Speech-To-Text (STT)** — Voice input for ANMs to dictate patient names, villages, and notes hands-free.
 - [ ] **Firebase Cloud Messaging (FCM)** — High-priority push notifications for critical patient emergency alerts.
 - [ ] **PostgreSQL Database Pipeline** — Live SQLAlchemy ORM models, Alembic migrations, and database connection pools.
-- [ ] **Full FHIR R4 Integration Engine** — Automated bi-directional converter mapping SakhiCare assessment payloads into FHIR `Patient`, `Observation`, and `Condition` bundles.
 
 ---
 
