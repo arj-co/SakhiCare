@@ -120,6 +120,67 @@ fun CaseDetailScreen(
                 }
             }
 
+            // ── Care Desk Advisory & Dispatch (If Received) ──
+            if (!patientCase.doctorAdvisory.isNullOrBlank()) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = PrimaryLight),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(color = Primary, shape = RoundedCornerShape(8.dp), modifier = Modifier.size(28.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.SupportAgent, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Text(
+                                "SakhiCare Care Desk Advisory",
+                                style = MaterialTheme.typography.titleMedium.copy(color = PrimaryDark, fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        Surface(
+                            color = SurfaceWhite,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "\"${patientCase.doctorAdvisory}\"",
+                                modifier = Modifier.padding(14.dp),
+                                style = MaterialTheme.typography.bodyMedium.copy(color = Neutral900, fontWeight = FontWeight.Medium)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (!patientCase.ambulanceStatus.isNullOrBlank()) {
+                Surface(
+                    color = TriageRedBg,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Default.LocalShipping, contentDescription = null, tint = TriageRed, modifier = Modifier.size(24.dp))
+                        Column {
+                            Text("108 Emergency Transport Active", style = MaterialTheme.typography.labelMedium.copy(color = TriageRedDark, fontWeight = FontWeight.Bold))
+                            Text(patientCase.ambulanceStatus, style = MaterialTheme.typography.bodySmall.copy(color = Neutral800))
+                        }
+                    }
+                }
+            }
+
             // ── Vitals Section ──
             DetailSection(title = Strings.get("vital_measurements", currentLanguage)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  sakhicare-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sakhicare-care-desk
+    ports:
+      - "8000:8000"
+    environment:
+      - ONESIGNAL_APP_ID=${ONESIGNAL_APP_ID:-sakhicare-app-id-placeholder}
+      - ONESIGNAL_REST_API_KEY=${ONESIGNAL_REST_API_KEY:-}
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

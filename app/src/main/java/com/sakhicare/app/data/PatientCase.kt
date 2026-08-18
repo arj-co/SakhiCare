@@ -30,7 +30,9 @@ data class PatientCase(
     val dangerSigns: DangerSigns,
     val riskLevel: RiskLevel,
     val assessmentTimestamp: Long = System.currentTimeMillis(),
-    val syncStatus: String = "Pending"
+    val syncStatus: String = "Pending",
+    val doctorAdvisory: String? = null,
+    val ambulanceStatus: String? = null
 ) {
     /** Formatted date string like "18 Aug 2026, 1:40 PM" */
     val formattedDate: String
