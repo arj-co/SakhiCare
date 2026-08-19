@@ -469,6 +469,78 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)) -> Dict[str, A
     return transcribe_offline_audio(content, filename=file.filename or "audio.wav")
 
 
+# ── SakhiAI Medical LLM Endpoints (UN SDG 3 Track) ──
+
+class CopilotChatRequest(BaseModel):
+    query: str = Field(..., json_schema_extra={"example": "8वें महीने में तेज सिरदर्द और 150/100 बीपी है, क्या प्राथमिक देखभाल दें?"})
+    language: str = Field("hi", json_schema_extra={"example": "hi"})
+    case_context: Optional[Dict[str, Any]] = None
+
+
+class CounselingScriptRequest(BaseModel):
+    patient_name: str = Field(..., json_schema_extra={"example": "Sunita Devi"})
+    village: str = Field(..., json_schema_extra={"example": "Rampur"})
+    risk_level: str = Field("RED", json_schema_extra={"example": "RED"})
+    danger_signs: Dict[str, bool] = Field(default_factory=dict)
+    blood_pressure: str = Field("155/98", json_schema_extra={"example": "155/98"})
+    haemoglobin: float = Field(8.5, json_schema_extra={"example": 8.5})
+    language: str = Field("hi", json_schema_extra={"example": "hi"})
+
+
+class DifferentialDiagnosisRequest(BaseModel):
+    patient_id: str = Field("SC-101", json_schema_extra={"example": "SC-101"})
+    patient_name: str = Field("Sunita Devi", json_schema_extra={"example": "Sunita Devi"})
+    blood_pressure: str = Field("165/110", json_schema_extra={"example": "165/110"})
+    haemoglobin: float = Field(6.8, json_schema_extra={"example": 6.8})
+    danger_signs: Dict[str, bool] = Field(default_factory=dict)
+
+
+@app.post("/api/v1/ai/copilot", status_code=status.HTTP_200_OK)
+def api_chat_copilot(request: CopilotChatRequest) -> Dict[str, Any]:
+    """
+    Conversational SakhiAI Copilot for frontline health workers (MoHFW / WHO guidelines).
+    """
+    import llm_engine
+    return llm_engine.chat_sakhi_copilot(
+        query=request.query,
+        case_context=request.case_context,
+        language=request.language
+    )
+
+
+@app.post("/api/v1/ai/counseling-script", status_code=status.HTTP_200_OK)
+def api_generate_counseling_script(request: CounselingScriptRequest) -> Dict[str, Any]:
+    """
+    Generates culturally empathetic, vernacular family counseling scripts (Hindi, Bengali, Marathi, Kannada, English)
+    to help ASHA workers persuade hesitant rural families for emergency hospital transfer.
+    """
+    import llm_engine
+    return llm_engine.generate_family_counseling_script(
+        patient_name=request.patient_name,
+        village=request.village,
+        risk_level=request.risk_level,
+        danger_signs=request.danger_signs,
+        blood_pressure=request.blood_pressure,
+        haemoglobin=request.haemoglobin,
+        language=request.language
+    )
+
+
+@app.post("/api/v1/ai/differential-diagnosis", status_code=status.HTTP_200_OK)
+def api_generate_differential(request: DifferentialDiagnosisRequest) -> Dict[str, Any]:
+    """
+    Generates structured Medical Officer differential diagnosis and pre-hospital management instructions.
+    """
+    import llm_engine
+    return llm_engine.generate_clinical_differential(
+        patient_id=request.patient_id,
+        patient_name=request.patient_name,
+        blood_pressure=request.blood_pressure,
+        haemoglobin=request.haemoglobin,
+        danger_signs=request.danger_signs
+    )
+
+
 # ── Case Management & FHIR Export ──
 
 @app.get("/cases", status_code=status.HTTP_200_OK)
@@ -508,3 +580,4 @@ def export_fhir_bundle(patient_id: str) -> Dict[str, Any]:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

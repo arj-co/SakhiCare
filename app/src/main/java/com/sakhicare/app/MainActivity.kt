@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.*
@@ -37,6 +38,7 @@ sealed class Screen {
     data object Dashboard : Screen()
     data object NewAssessment : Screen()
     data object MyCases : Screen()
+    data object SakhiAi : Screen()
     data class CaseDetail(val caseId: String) : Screen()
 }
 
@@ -81,7 +83,7 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
     Scaffold(
         containerColor = BackgroundSoft,
         bottomBar = {
-            val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment
+            val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment || currentScreen is Screen.SakhiAi || currentScreen is Screen.MyCases
             if (showBottomNav) {
                 ModernBottomNav(
                     currentScreen = currentScreen,
@@ -116,6 +118,9 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                         PatientRepository.addCase(newCase)
                     },
                     onNavigateBack = { currentScreen = Screen.Dashboard }
+                )
+                Screen.SakhiAi -> com.sakhicare.app.ui.SakhiAiCopilotScreen(
+                    currentLanguage = currentLanguage
                 )
                 Screen.MyCases -> MyCasesScreen(
                     cases = PatientRepository.cases,
@@ -154,8 +159,8 @@ private fun ModernBottomNav(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
             NavItem(
@@ -169,6 +174,12 @@ private fun ModernBottomNav(
                 icon = Icons.Default.Add,
                 label = Strings.get("new_assessment", currentLanguage),
                 onClick = { onNavigate(Screen.NewAssessment) }
+            )
+            NavItem(
+                selected = currentScreen is Screen.SakhiAi,
+                icon = Icons.Default.AutoAwesome,
+                label = "SakhiAI",
+                onClick = { onNavigate(Screen.SakhiAi) }
             )
             NavItem(
                 selected = currentScreen is Screen.MyCases || currentScreen is Screen.CaseDetail,

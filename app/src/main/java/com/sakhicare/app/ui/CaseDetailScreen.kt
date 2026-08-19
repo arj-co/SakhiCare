@@ -227,6 +227,67 @@ fun CaseDetailScreen(
                 }
             }
 
+            // ── SakhiAI Vernacular Family Counseling & Persuasion Script (UN SDG 3) ──
+            if (patientCase.riskLevel == RiskLevel.RED || patientCase.riskLevel == RiskLevel.AMBER) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(color = AccentIndigo, shape = RoundedCornerShape(8.dp), modifier = Modifier.size(32.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "SakhiAI Family Persuasion Script",
+                                    style = MaterialTheme.typography.titleMedium.copy(color = Neutral900, fontWeight = FontWeight.Bold)
+                                )
+                                Text(
+                                    "UN SDG 3 • Vernacular Referral Counseling",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = AccentIndigo, fontWeight = FontWeight.SemiBold)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = Neutral50,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val activeSigns = buildList {
+                                if (patientCase.dangerSigns.bleeding) add("रक्तस्राव")
+                                if (patientCase.dangerSigns.fever) add("तेज बुखार")
+                                if (patientCase.dangerSigns.headache) add("तेज सिरदर्द")
+                                if (patientCase.dangerSigns.reducedFetalMovement) add("शिशु की कम हलचल")
+                            }.joinToString(", ").ifBlank { "उच्च रक्तचाप" }
+
+                            val scriptText = if (currentLanguage == AppLanguage.HINDI)
+                                "नमस्ते जी। मैं आपकी आशा दीदी। देखिए, ${patientCase.patientName} जी का बीपी ${patientCase.bloodPressure} है और ${activeSigns} के लक्षण हैं। यह मां और बच्चे के लिए खतरे का संकेत है। अस्पताल में जांच से दोनों पूरी तरह सुरक्षित हो जाएंगे। सरकार की 108 एम्बुलेंस और इलाज बिल्कुल मुफ्त है। कृपया देर न करें, अभी अस्पताल चलें।"
+                            else
+                                "Namaste. I am your ASHA worker. ${patientCase.patientName}'s BP is ${patientCase.bloodPressure} with symptoms of ${activeSigns}. These require urgent hospital evaluation. The 108 ambulance and hospital care are free under government schemes. Please do not delay transfer to ensure safety of mother and baby."
+
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "\"$scriptText\"",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Neutral800, lineHeight = 20.sp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── FHIR R4 Export ──
             Card(
                 shape = RoundedCornerShape(20.dp),

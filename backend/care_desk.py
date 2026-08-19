@@ -601,6 +601,7 @@ CARE_DESK_HTML = """<!DOCTYPE html>
                 <div class="live-dot"></div>
                 <span>LIVE STREAM ACTIVE</span>
             </div>
+            <button class="btn-header" onclick="openCopilotModal()" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); border: none;">🤖 SakhiAI Copilot</button>
             <button class="btn-header" onclick="openBroadcastModal()">📢 Broadcast Alert</button>
             <button class="btn-header" onclick="testOneSignalPush()">⚡ Test Push API</button>
             <button class="btn-header" onclick="fetchCases()">🔄 Refresh</button>
@@ -741,6 +742,61 @@ CARE_DESK_HTML = """<!DOCTYPE html>
             <div class="modal-btns">
                 <button class="btn-action" onclick="copyFhirJson()">📋 Copy JSON</button>
                 <button class="btn-action primary" onclick="closeModal('fhir-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SakhiAI Differential Diagnosis Modal ── -->
+    <div class="modal-overlay" id="ai-diff-modal">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-title">
+                <span>🧠 SakhiAI Differential Diagnosis & Stabilization Protocol</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeModal('ai-diff-modal')">&times;</span>
+            </div>
+            <div id="ai-diff-content" style="font-size: 13px; color: var(--text-main); display: flex; flex-direction: column; gap: 10px;">
+                Loading AI Clinical Reasoning...
+            </div>
+            <div class="modal-btns">
+                <button class="btn-action primary" onclick="closeModal('ai-diff-modal')">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SakhiAI Counseling Script Modal ── -->
+    <div class="modal-overlay" id="counseling-modal">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-title">
+                <span>📜 SakhiAI Family Persuasion Script (UN SDG 3)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeModal('counseling-modal')">&times;</span>
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted);">
+                Culturally empathetic referral script for ASHA worker to persuade hesitant rural family members.
+            </div>
+            <div id="counseling-script-content" style="background: var(--bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; line-height: 1.5;">
+                Loading script...
+            </div>
+            <div class="modal-btns">
+                <button class="btn-action" onclick="copyCounselingScript()">📋 Copy Script</button>
+                <button class="btn-action primary" onclick="closeModal('counseling-modal')">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SakhiAI Copilot Chat Modal ── -->
+    <div class="modal-overlay" id="copilot-modal">
+        <div class="modal-card" style="max-width: 600px;">
+            <div class="modal-title">
+                <span>🤖 SakhiAI Clinical Copilot (MoHFW & WHO Intelligence)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeModal('copilot-modal')">&times;</span>
+            </div>
+            <div id="copilot-history" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                <div style="background: var(--bg); padding: 10px; border-radius: 8px;">
+                    🌸 <b>SakhiAI</b>: Hello Care Desk operator! Ask any question regarding high-risk pregnancy protocols, pre-eclampsia, or obstetric emergencies.
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="copilot-input" placeholder="Ask clinical question (English or Hindi)..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit;">
+                <button class="btn-action primary" onclick="sendCopilotMessage()">Send</button>
             </div>
         </div>
     </div>
@@ -924,6 +980,8 @@ CARE_DESK_HTML = """<!DOCTYPE html>
 
                         <div class="actions-bar">
                             <button class="btn-action primary" onclick="openAdvisoryModal('${c.patient_id}', '${c.patient_name}')">💬 Advisory</button>
+                            <button class="btn-action" style="background: linear-gradient(135deg, #6366F1, #8B5CF6); color: white;" onclick="viewAiDifferential('${c.patient_id}')">🧠 AI Differential</button>
+                            <button class="btn-action" style="background: #EC4899; color: white;" onclick="viewCounselingScript('${c.patient_id}')">📜 Counseling</button>
                             <button class="btn-action ambulance" onclick="dispatchAmbulance('${c.patient_id}')">🚑 108 Dispatch</button>
                             <button class="btn-action" onclick="viewFhirBundle('${c.patient_id}')">📋 FHIR</button>
                         </div>
@@ -1052,6 +1110,111 @@ CARE_DESK_HTML = """<!DOCTYPE html>
             const text = document.getElementById('fhir-json').innerText;
             navigator.clipboard.writeText(text);
             alert("FHIR R4 JSON copied to clipboard!");
+        }
+
+        // ── SakhiAI Differential Diagnosis Modal ──
+        async function viewAiDifferential(patientId) {
+            const c = allCases.find(x => x.patient_id === patientId);
+            if (!c) return;
+            document.getElementById('ai-diff-modal').style.display = 'flex';
+            document.getElementById('ai-diff-content').innerHTML = `<em>Running SakhiAI Clinical Reasoning for ${c.patient_name}...</em>`;
+            try {
+                const res = await fetch('/api/v1/ai/differential-diagnosis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patient_id: c.patient_id,
+                        patient_name: c.patient_name,
+                        blood_pressure: c.blood_pressure,
+                        haemoglobin: parseFloat(c.haemoglobin) || 8.5,
+                        danger_signs: c.danger_signs || {}
+                    })
+                });
+                const data = await res.json();
+                const diffHtml = data.differential_diagnoses.map(d => `<li style="font-weight: 700; color: #DC2626;">${d}</li>`).join('');
+                const actHtml = data.clinical_actions.map(a => `<li>${a}</li>`).join('');
+
+                document.getElementById('ai-diff-content').innerHTML = `
+                    <div style="background: var(--bg); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                        <b>Patient:</b> ${c.patient_name} (${c.village}) | <b>BP:</b> ${c.blood_pressure} | <b>Hb:</b> ${c.haemoglobin} g/dL
+                    </div>
+                    <div>
+                        <div style="font-weight: 800; margin-bottom: 4px;">🧠 Suspected Differential Diagnoses:</div>
+                        <ul style="padding-left: 20px; margin: 0;">${diffHtml}</ul>
+                    </div>
+                    <div>
+                        <div style="font-weight: 800; margin-bottom: 4px;">⚡ Pre-Hospital Emergency Stabilization Actions:</div>
+                        <ul style="padding-left: 20px; margin: 0;">${actHtml}</ul>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+                        📚 Evidence: ${data.evidence_base}
+                    </div>
+                `;
+            } catch(err) {
+                document.getElementById('ai-diff-content').innerText = "AI evaluation error: " + err;
+            }
+        }
+
+        // ── SakhiAI Counseling Script Modal ──
+        async function viewCounselingScript(patientId) {
+            const c = allCases.find(x => x.patient_id === patientId);
+            if (!c) return;
+            document.getElementById('counseling-modal').style.display = 'flex';
+            document.getElementById('counseling-script-content').innerHTML = `<em>Generating culturally empathetic script for ${c.patient_name}...</em>`;
+            try {
+                const res = await fetch('/api/v1/ai/counseling-script', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patient_name: c.patient_name,
+                        village: c.village,
+                        risk_level: c.risk_level,
+                        danger_signs: c.danger_signs || {},
+                        blood_pressure: c.blood_pressure,
+                        haemoglobin: parseFloat(c.haemoglobin) || 8.5,
+                        language: "hi"
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('counseling-script-content').innerText = data.counseling_script;
+            } catch(err) {
+                document.getElementById('counseling-script-content').innerText = "Script generation error: " + err;
+            }
+        }
+
+        function copyCounselingScript() {
+            const text = document.getElementById('counseling-script-content').innerText;
+            navigator.clipboard.writeText(text);
+            alert("Counseling script copied to clipboard!");
+        }
+
+        // ── SakhiAI Copilot Modal ──
+        function openCopilotModal() {
+            document.getElementById('copilot-modal').style.display = 'flex';
+        }
+
+        async function sendCopilotMessage() {
+            const input = document.getElementById('copilot-input');
+            const q = input.value.trim();
+            if (!q) return;
+
+            const hist = document.getElementById('copilot-history');
+            hist.innerHTML += `<div style="background: #EEF2FF; padding: 10px; border-radius: 8px; align-self: flex-end; color: #3730A3;"><b>You:</b> ${q}</div>`;
+            input.value = '';
+            hist.scrollTop = hist.scrollHeight;
+
+            try {
+                const res = await fetch('/api/v1/ai/copilot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: q, language: "hi" })
+                });
+                const data = await res.json();
+                hist.innerHTML += `<div style="background: var(--bg); padding: 10px; border-radius: 8px; white-space: pre-wrap;">${data.reply}</div>`;
+                hist.scrollTop = hist.scrollHeight;
+            } catch(err) {
+                hist.innerHTML += `<div style="color: #DC2626;">Error: ${err}</div>`;
+            }
         }
 
         function closeModal(id) {
