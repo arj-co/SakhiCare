@@ -29,6 +29,9 @@ data class PatientCase(
     val haemoglobin: String,
     val dangerSigns: DangerSigns,
     val riskLevel: RiskLevel,
+    val riskScore: Int = 10,
+    val clinicalRationale: String? = null,
+    val recommendedProtocol: String? = null,
     val assessmentTimestamp: Long = System.currentTimeMillis(),
     val syncStatus: String = "Pending",
     val doctorAdvisory: String? = null,
@@ -64,24 +67,16 @@ data class PatientCase(
         }
 
     companion object {
-        fun calculateRisk(dangerSigns: DangerSigns, bloodPressure: String): RiskLevel {
-            val isHighBp = parseIsHighBp(bloodPressure)
-
-            return when {
-                dangerSigns.bleeding || isHighBp -> RiskLevel.RED
-                dangerSigns.fever || dangerSigns.headache -> RiskLevel.AMBER
-                else -> RiskLevel.GREEN
-            }
-        }
-
-        private fun parseIsHighBp(bp: String): Boolean {
-            val parts = bp.trim().split("/")
-            if (parts.size == 2) {
-                val sys = parts[0].trim().toIntOrNull() ?: 0
-                val dia = parts[1].trim().toIntOrNull() ?: 0
-                if (sys >= 140 || dia >= 90) return true
-            }
-            return false
+        fun calculateRisk(
+            dangerSigns: DangerSigns,
+            bloodPressure: String,
+            haemoglobin: String = "11.0"
+        ): RiskLevel {
+            return TriageEngine.evaluate(
+                bloodPressure = bloodPressure,
+                haemoglobinStr = haemoglobin,
+                dangerSigns = dangerSigns
+            ).riskLevel
         }
     }
 }

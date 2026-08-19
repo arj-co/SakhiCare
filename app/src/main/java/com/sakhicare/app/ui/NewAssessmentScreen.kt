@@ -184,8 +184,9 @@ fun NewAssessmentScreen(
 
                     val ds = DangerSigns(bleeding, fever, headache, reducedFetalMovement)
                     val bp = bloodPressure.ifBlank { "120/80" }
-                    val risk = PatientCase.calculateRisk(ds, bp)
-                    submittedRisk = risk
+                    val hb = if (haemoglobin.isBlank()) "11.0 g/dL" else if (haemoglobin.endsWith("g/dL")) haemoglobin else "$haemoglobin g/dL"
+                    val evaluation = com.sakhicare.app.data.TriageEngine.evaluate(bp, hb, ds)
+                    submittedRisk = evaluation.riskLevel
 
                     onAssessmentSubmitted(
                         PatientCase(
@@ -193,9 +194,12 @@ fun NewAssessmentScreen(
                             patientName = patientName.ifBlank { "Unknown" },
                             village = village.ifBlank { "Unknown" },
                             bloodPressure = bp,
-                            haemoglobin = if (haemoglobin.isBlank()) "N/A" else if (haemoglobin.endsWith("g/dL")) haemoglobin else "$haemoglobin g/dL",
+                            haemoglobin = hb,
                             dangerSigns = ds,
-                            riskLevel = risk,
+                            riskLevel = evaluation.riskLevel,
+                            riskScore = evaluation.riskScore,
+                            clinicalRationale = evaluation.clinicalRationale,
+                            recommendedProtocol = evaluation.recommendedProtocol,
                             assessmentTimestamp = System.currentTimeMillis(),
                             syncStatus = "Pending"
                         )
@@ -236,13 +240,13 @@ fun NewAssessmentScreen(
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                     modifier = Modifier
-                        .padding(32.dp)
+                        .padding(24.dp)
                         .fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         val (successColor, successBg) = when (submittedRisk) {
                             RiskLevel.RED -> Pair(TriageRed, TriageRedBg)
@@ -250,9 +254,9 @@ fun NewAssessmentScreen(
                             RiskLevel.GREEN -> Pair(TriageGreen, TriageGreenBg)
                             null -> Pair(Primary, PrimaryLight)
                         }
-                        Surface(color = successBg, shape = CircleShape, modifier = Modifier.size(72.dp)) {
+                        Surface(color = successBg, shape = CircleShape, modifier = Modifier.size(68.dp)) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = successColor, modifier = Modifier.size(42.dp))
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = successColor, modifier = Modifier.size(38.dp))
                             }
                         }
                         Text(
@@ -261,8 +265,8 @@ fun NewAssessmentScreen(
                         )
                         Surface(color = successBg, shape = RoundedCornerShape(12.dp)) {
                             Text(
-                                "Triage Risk: ${submittedRisk?.name ?: ""}",
-                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                                "Triage: ${submittedRisk?.name ?: ""} RISK",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                                 style = MaterialTheme.typography.titleMedium.copy(color = successColor, fontWeight = FontWeight.Bold)
                             )
                         }
