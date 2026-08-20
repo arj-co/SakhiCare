@@ -142,10 +142,20 @@ fun NewAssessmentScreen(
                                     Strings.get("voice_assistant", currentLanguage),
                                     style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold)
                                 )
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        "SPEECH-LLM",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                    )
+                                }
                             }
                             Text(
-                                Strings.get("voice_assistant_desc", currentLanguage),
-                                style = MaterialTheme.typography.labelMedium.copy(color = Color.White.copy(alpha = 0.85f))
+                                "Dual Offline STT • Neural Audio-to-Reasoning",
+                                style = MaterialTheme.typography.labelMedium.copy(color = Color.White.copy(alpha = 0.9f))
                             )
                         }
                     }

@@ -541,6 +541,32 @@ def api_generate_differential(request: DifferentialDiagnosisRequest) -> Dict[str
     )
 
 
+# ── Speech-LLM Unified Audio-to-Reasoning Endpoints (SDG Track) ──
+
+class SpeechLLMTextRequest(BaseModel):
+    spoken_transcript: str = Field(..., json_schema_extra={"example": "मरीज सुनीता देवी गांव रामपुर बीपी एक सौ साठ बटा एक सौ दस हीमोग्लोबिन छह दशमलव आठ तेज सिरदर्द और खून बहना"})
+
+
+@app.post("/api/v1/speech-llm/process-transcript", status_code=status.HTTP_200_OK)
+def api_speech_llm_process_transcript(request: SpeechLLMTextRequest) -> Dict[str, Any]:
+    """
+    Direct Speech-LLM Pipeline: Applies LLM phonetic corrections, extracts clinical entities,
+    evaluates multi-metric triage, and generates differential diagnosis & counseling in a single pass.
+    """
+    from speech_llm import SpeechLLMProcessor
+    return SpeechLLMProcessor.extract_and_reason_from_speech(request.spoken_transcript)
+
+
+@app.post("/api/v1/speech-llm/process-audio", status_code=status.HTTP_200_OK)
+async def api_speech_llm_process_audio(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    Unified Audio-to-Reasoning Speech-LLM: Ingests audio bytes and outputs complete medical assessment.
+    """
+    from speech_llm import SpeechLLMProcessor
+    content = await file.read()
+    return SpeechLLMProcessor.transcribe_audio_with_llm(content, filename=file.filename or "audio.wav")
+
+
 # ── Case Management & FHIR Export ──
 
 @app.get("/cases", status_code=status.HTTP_200_OK)
