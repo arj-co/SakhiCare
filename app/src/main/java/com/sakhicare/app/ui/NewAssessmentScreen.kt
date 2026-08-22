@@ -10,6 +10,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +44,7 @@ import androidx.core.content.ContextCompat
 import com.sakhicare.app.data.DangerSigns
 import com.sakhicare.app.data.PatientCase
 import com.sakhicare.app.data.RiskLevel
+import com.sakhicare.app.data.TriageEngine
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.ui.theme.*
@@ -70,7 +73,7 @@ fun NewAssessmentScreen(
     var showVoiceModal by remember { mutableStateOf(false) }
     var voiceTranscript by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(false) }
-    var sttStatusMessage by remember { mutableStateOf("Offline On-Device AI Speech Recognition Ready") }
+    var sttStatusMessage by remember { mutableStateOf("Local Android Speech Recognition Ready") }
 
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -81,6 +84,63 @@ fun NewAssessmentScreen(
         animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "scale"
     )
+
+    fun applyParsedData(spoken: String) {
+        voiceTranscript = spoken
+        val parsed = VoiceHelper.parseSpokenText(spoken)
+        if (parsed.patientName.isNotBlank()) patientName = parsed.patientName
+        if (parsed.village.isNotBlank()) village = parsed.village
+        if (parsed.bloodPressure.isNotBlank()) bloodPressure = parsed.bloodPressure
+        if (parsed.haemoglobin.isNotBlank()) haemoglobin = parsed.haemoglobin
+        if (parsed.dangerSigns.bleeding) bleeding = true
+        if (parsed.dangerSigns.fever) fever = true
+        if (parsed.dangerSigns.headache) headache = true
+        if (parsed.dangerSigns.reducedFetalMovement) reducedFetalMovement = true
+        sttStatusMessage = "Speech processed: $spoken"
+        Toast.makeText(context, "Filled assessment from speech!", Toast.LENGTH_SHORT).show()
+    }
+
+    // ── Local Android Speech Recognizer Launcher ──
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isListening = false
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                applyParsedData(spoken)
+                showVoiceModal = false
+            }
+        }
+    }
+
+    fun startLocalAndroidSpeech() {
+        val sttLocale = when (currentLanguage) {
+            AppLanguage.HINDI -> "hi-IN"
+            AppLanguage.MARATHI -> "mr-IN"
+            AppLanguage.KANNADA -> "kn-IN"
+            AppLanguage.BENGALI -> "bn-IN"
+            else -> "en-IN"
+        }
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, sttLocale)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, sttLocale)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "मरीज का नाम, गांव, बीपी और हीमोग्लोबिन बोलें...")
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+
+        try {
+            isListening = true
+            speechLauncher.launch(intent)
+        } catch (e: Exception) {
+            isListening = false
+            // Open modal fallback if intent is not supported directly
+            showVoiceModal = true
+        }
+    }
 
     // Auto-navigate after success
     LaunchedEffect(showSuccessOverlay) {
@@ -114,7 +174,7 @@ fun NewAssessmentScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showVoiceModal = true }
+                    .clickable { startLocalAndroidSpeech() }
             ) {
                 Box(
                     modifier = Modifier
@@ -333,84 +393,9 @@ fun NewAssessmentScreen(
                         style = MaterialTheme.typography.bodySmall.copy(color = Neutral600)
                     )
 
-                    // ── Speech Recognizer Trigger Button ──
+                    // ── Local Android Speech Recognizer Trigger Button ──
                     Button(
-                        onClick = {
-                            val activity = context as? Activity ?: return@Button
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                                ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.RECORD_AUDIO), 100)
-                                return@Button
-                            }
-
-                            try {
-                                val recognizer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                    SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-                                ) {
-                                    SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-                                } else {
-                                    SpeechRecognizer.createSpeechRecognizer(context)
-                                }
-
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    val sttLocale = when (currentLanguage) {
-                                        AppLanguage.HINDI -> "hi-IN"
-                                        AppLanguage.MARATHI -> "mr-IN"
-                                        AppLanguage.KANNADA -> "kn-IN"
-                                        AppLanguage.BENGALI -> "bn-IN"
-                                        else -> "en-IN"
-                                    }
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, sttLocale)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, sttLocale)
-                                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                                }
-
-                                recognizer.setRecognitionListener(object : RecognitionListener {
-                                    override fun onReadyForSpeech(params: Bundle?) {
-                                        isListening = true
-                                        sttStatusMessage = "Listening... Speak clearly in ${currentLanguage.displayName}"
-                                    }
-                                    override fun onBeginningOfSpeech() {
-                                        isListening = true
-                                    }
-                                    override fun onRmsChanged(rmsdB: Float) {}
-                                    override fun onBufferReceived(buffer: ByteArray?) {}
-                                    override fun onEndOfSpeech() {
-                                        isListening = false
-                                        sttStatusMessage = "Processing speech..."
-                                    }
-                                    override fun onError(error: Int) {
-                                        isListening = false
-                                        sttStatusMessage = when (error) {
-                                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. Try speaking again."
-                                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout. Tap to speak again."
-                                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording issue. Check mic."
-                                            else -> "Offline mode: type or select a quick template below"
-                                        }
-                                    }
-                                    override fun onPartialResults(partialResults: Bundle?) {
-                                        val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                                        if (partial != null) voiceTranscript = partial
-                                    }
-                                    override fun onResults(results: Bundle?) {
-                                        val result = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                                        if (result != null) voiceTranscript = result
-                                        isListening = false
-                                        sttStatusMessage = "Speech captured! Ready to parse."
-                                        recognizer.destroy()
-                                    }
-                                    override fun onEvent(eventType: Int, params: Bundle?) {}
-                                })
-
-                                isListening = true
-                                recognizer.startListening(intent)
-                            } catch (e: Exception) {
-                                isListening = false
-                                sttStatusMessage = "Speech recognizer unavailable on this device. Use text input."
-                            }
-                        },
+                        onClick = { startLocalAndroidSpeech() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isListening) TriageRed else AccentIndigo
                         ),
@@ -426,7 +411,7 @@ fun NewAssessmentScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            if (isListening) Strings.get("listening", currentLanguage) else Strings.get("start_listening", currentLanguage),
+                            if (isListening) Strings.get("listening", currentLanguage) else "🎙️ Start Local Android Speech (बोलकर दर्ज करें)",
                             fontWeight = FontWeight.SemiBold
                         )
                     }
