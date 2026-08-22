@@ -35,6 +35,7 @@ import com.sakhicare.app.ui.NewAssessmentScreen
 import com.sakhicare.app.ui.theme.*
 
 sealed class Screen {
+    data object Onboarding : Screen()
     data object Dashboard : Screen()
     data object NewAssessment : Screen()
     data object MyCases : Screen()
@@ -99,6 +100,13 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                 .padding(paddingValues)
         ) {
             when (val screen = currentScreen) {
+                Screen.Onboarding -> com.sakhicare.app.ui.OnboardingScreen(
+                    currentLanguage = currentLanguage,
+                    onLanguageSelected = { currentLanguage = it },
+                    onCompleteOnboarding = { _, _ ->
+                        currentScreen = Screen.Dashboard
+                    }
+                )
                 Screen.Dashboard -> DashboardScreen(
                     pendingSyncCount = PatientRepository.getPendingSyncCount(),
                     isOnline = isOnline,
@@ -110,7 +118,8 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                     onToggleNetworkMode = { manualOnlineOverride = !isOnline },
                     onSyncNowClick = { PatientRepository.syncAllPending() },
                     onNewAssessmentClick = { currentScreen = Screen.NewAssessment },
-                    onMyCasesClick = { currentScreen = Screen.MyCases }
+                    onMyCasesClick = { currentScreen = Screen.MyCases },
+                    onSakhiAiClick = { currentScreen = Screen.SakhiAi }
                 )
                 Screen.NewAssessment -> NewAssessmentScreen(
                     currentLanguage = currentLanguage,

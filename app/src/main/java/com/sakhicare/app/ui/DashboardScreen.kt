@@ -1,11 +1,13 @@
 package com.sakhicare.app.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,12 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.*
@@ -31,6 +28,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.sakhicare.app.R
 import com.sakhicare.app.data.PatientCase
 import com.sakhicare.app.data.PatientRepository
+import com.sakhicare.app.data.RiskLevel
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.ui.theme.*
@@ -57,12 +56,17 @@ fun DashboardScreen(
     onToggleNetworkMode: () -> Unit,
     onSyncNowClick: () -> Unit,
     onNewAssessmentClick: () -> Unit,
-    onMyCasesClick: () -> Unit
+    onMyCasesClick: () -> Unit,
+    onSakhiAiClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
     var languageDropdownExpanded by remember { mutableStateOf(false) }
     val totalCases = redCount + amberCount + greenCount
     val lastAssessmentTime = PatientRepository.getLastAssessmentTime()
+
+    // Get the most critical emergency case if any exists
+    val activeRedCase = PatientRepository.cases.find { it.riskLevel == RiskLevel.RED }
 
     Column(
         modifier = Modifier
@@ -70,9 +74,9 @@ fun DashboardScreen(
             .background(BackgroundSoft)
             .verticalScroll(scrollState)
             .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Top Row: Logo + App Branding + Language & Network ──
+        // ── Top Header: Logo + App Branding + Language & Network ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -81,7 +85,7 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Official Logo + Title
+            // Left: Official Logo + ASHA Welcome Greeting
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
@@ -103,21 +107,19 @@ fun DashboardScreen(
                     )
                 }
 
-                Column(
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
-                        text = "Welcome back 👋",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = Neutral500,
-                            fontWeight = FontWeight.Medium
+                        text = if (currentLanguage == AppLanguage.HINDI) "नमस्ते आशा दीदी 🌸" else "Namaste ASHA Didi 🌸",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = PrimaryDark,
+                            fontWeight = FontWeight.Bold
                         )
                     )
                     Text(
                         text = Strings.get("app_name", currentLanguage),
                         style = MaterialTheme.typography.titleLarge.copy(
                             color = Neutral900,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             fontSize = 20.sp
                         ),
                         maxLines = 1,
@@ -127,7 +129,7 @@ fun DashboardScreen(
                 }
             }
 
-            // Right: Language Selector + Network Toggle Pills
+            // Right: Language Selector + Network Toggle
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -146,12 +148,7 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Language,
-                                contentDescription = null,
-                                tint = Primary,
-                                modifier = Modifier.size(15.dp)
-                            )
+                            Icon(Icons.Default.Language, contentDescription = null, tint = Primary, modifier = Modifier.size(15.dp))
                             Text(
                                 currentLanguage.nativeName,
                                 style = MaterialTheme.typography.labelMedium.copy(
@@ -212,268 +209,238 @@ fun DashboardScreen(
             }
         }
 
-        // ── Internet Connectivity Sync Alert Banner ──
-        AnimatedVisibility(
-            visible = isOnline && pendingSyncCount > 0,
-            enter = fadeIn(),
-            exit = fadeOut()
+        // ── Sub-Centre Coverage Tag ──
+        Surface(
+            color = SurfaceWhite,
+            shape = RoundedCornerShape(14.dp),
+            shadowElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Surface(
-                color = TriageGreenBg,
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, TriageGreen.copy(alpha = 0.4f)),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CloudUpload,
-                            contentDescription = null,
-                            tint = TriageGreen,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column {
-                            Text(
-                                "Internet Connected",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    color = TriageGreen,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                            Text(
-                                "$pendingSyncCount case(s) ready to sync to server",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Neutral700
-                                )
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = onSyncNowClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = TriageGreen),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Sync Now", color = Color.White, style = MaterialTheme.typography.labelSmall)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                    Text(
+                        "रामपुर उप-स्वास्थ्य केंद्र (Rampur Sub-Centre)",
+                        style = MaterialTheme.typography.labelMedium.copy(color = Neutral800, fontWeight = FontWeight.SemiBold)
+                    )
                 }
+                Text(
+                    "5 गांव • 24 माताएं",
+                    style = MaterialTheme.typography.labelSmall.copy(color = Neutral500)
+                )
             }
         }
 
-        // ── Hero Banner Card ──
-        if (totalCases == 0) {
-            // Empty state hero
+        // ── Active Emergency Spotlight Card (If RED Case Exists) ──
+        if (activeRedCase != null) {
             Card(
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = Primary.copy(alpha = 0.15f))
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = TriageRedBg),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, TriageRed.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
-                    modifier = Modifier
-                        .background(Brush.linearGradient(listOf(Color(0xFFE8647C), Color(0xFFF472B6))))
-                        .padding(24.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color.White.copy(alpha = 0.25f),
-                                modifier = Modifier.size(42.dp)
-                            ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(color = TriageRed, shape = CircleShape, modifier = Modifier.size(24.dp)) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("🩺", fontSize = 22.sp)
+                                    Icon(Icons.Default.PriorityHigh, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                 }
                             }
                             Text(
-                                Strings.get("welcome_title", currentLanguage),
+                                "🚨 सक्रिय आपातकालीन मामला (Active Emergency)",
+                                style = MaterialTheme.typography.labelLarge.copy(color = TriageRedDark, fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        Surface(color = TriageRed, shape = RoundedCornerShape(8.dp)) {
+                            Text(
+                                "RED",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+
+                    Text(
+                        "${activeRedCase.patientName} • ${activeRedCase.village} (BP: ${activeRedCase.bloodPressure} | Hb: ${activeRedCase.haemoglobin})",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = Neutral900, fontWeight = FontWeight.Bold)
+                    )
+
+                    if (!activeRedCase.ambulanceStatus.isNullOrBlank()) {
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.LocalShipping, contentDescription = null, tint = TriageRed, modifier = Modifier.size(18.dp))
+                                Text(
+                                    activeRedCase.ambulanceStatus,
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TriageRedDark, fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Hero Banner Card with Warm Gradient ──
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = Primary.copy(alpha = 0.25f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(Brush.linearGradient(listOf(Color(0xFFE84364), Color(0xFFF76B8A), Color(0xFFF9A826))))
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = Strings.get("welcome_title", currentLanguage),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 19.sp
                                 )
                             )
-                        }
-                        Text(
-                            Strings.get("welcome_desc", currentLanguage),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White.copy(alpha = 0.95f),
-                                lineHeight = 20.sp
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Button(
-                            onClick = onNewAssessmentClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
                             Text(
-                                Strings.get("start_first_assessment", currentLanguage),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    color = Primary,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                text = Strings.get("app_subtitle", currentLanguage),
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color.White.copy(alpha = 0.95f))
                             )
                         }
-                    }
-                }
-            }
-        } else {
-            // Active state hero
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(12.dp, RoundedCornerShape(24.dp), ambientColor = Primary.copy(alpha = 0.2f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(Brush.linearGradient(listOf(Color(0xFFE8647C), Color(0xFFF472B6))))
-                        .padding(22.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = Strings.get("app_subtitle", currentLanguage),
-                            style = MaterialTheme.typography.bodyMedium.copy(color = Color.White.copy(alpha = 0.9f))
-                        )
-                        if (lastAssessmentTime != null) {
-                            val ago = System.currentTimeMillis() - lastAssessmentTime
-                            val agoText = when {
-                                TimeUnit.MILLISECONDS.toMinutes(ago) < 1 -> "Just now"
-                                TimeUnit.MILLISECONDS.toMinutes(ago) < 60 -> "${TimeUnit.MILLISECONDS.toMinutes(ago)} min ago"
-                                TimeUnit.MILLISECONDS.toHours(ago) < 24 -> "${TimeUnit.MILLISECONDS.toHours(ago)}h ago"
-                                else -> "${TimeUnit.MILLISECONDS.toDays(ago)} days ago"
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.25f),
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("🩺", fontSize = 22.sp)
                             }
-                            Text(
-                                "${Strings.get("last_assessment", currentLanguage)}: $agoText",
-                                style = MaterialTheme.typography.labelMedium.copy(color = Color.White.copy(alpha = 0.75f))
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            StatChip(
-                                value = "$totalCases",
-                                label = Strings.get("total", currentLanguage),
-                                bg = Color.White.copy(alpha = 0.22f),
-                                fg = Color.White
-                            )
-                            StatChip(
-                                value = "$pendingSyncCount",
-                                label = Strings.get("pending", currentLanguage),
-                                bg = Color.White.copy(alpha = 0.22f),
-                                fg = Color.White
-                            )
                         }
                     }
-                }
-            }
-        }
 
-        // ── Triage Summary (only if cases exist) ──
-        if (totalCases > 0) {
-            Text(
-                text = Strings.get("triage_summary", currentLanguage),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    color = Neutral900,
-                    fontWeight = FontWeight.Bold
-                )
-            )
+                    Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                TriageCard(
-                    modifier = Modifier.weight(1f),
-                    count = redCount,
-                    label = Strings.get("red_risk", currentLanguage),
-                    color = TriageRed,
-                    bgColor = TriageRedBg
-                )
-                TriageCard(
-                    modifier = Modifier.weight(1f),
-                    count = amberCount,
-                    label = Strings.get("amber_risk", currentLanguage),
-                    color = TriageAmber,
-                    bgColor = TriageAmberBg
-                )
-                TriageCard(
-                    modifier = Modifier.weight(1f),
-                    count = greenCount,
-                    label = Strings.get("green_risk", currentLanguage),
-                    color = TriageGreen,
-                    bgColor = TriageGreenBg
-                )
-            }
-
-            // ── Sync Status Bar ──
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            if (pendingSyncCount == 0) Icons.Outlined.CloudDone else Icons.Outlined.CloudOff,
-                            contentDescription = null,
-                            tint = if (pendingSyncCount == 0) TriageGreen else TriageAmber,
-                            modifier = Modifier.size(22.dp)
+                        StatChip(
+                            value = "$totalCases",
+                            label = Strings.get("total", currentLanguage),
+                            bg = Color.White.copy(alpha = 0.22f),
+                            fg = Color.White,
+                            modifier = Modifier.weight(1f)
                         )
-                        Column {
-                            Text(
-                                if (pendingSyncCount == 0) Strings.get("all_synced", currentLanguage)
-                                else "${Strings.get("pending_sync", currentLanguage)}: $pendingSyncCount",
-                                style = MaterialTheme.typography.titleMedium.copy(color = Neutral900)
-                            )
-                            Text(
-                                Strings.get("sync_status", currentLanguage),
-                                style = MaterialTheme.typography.labelMedium.copy(color = Neutral400)
-                            )
-                        }
-                    }
-
-                    FilledTonalButton(
-                        onClick = onSyncNowClick,
-                        enabled = pendingSyncCount > 0 && isOnline,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(Strings.get("sync_now", currentLanguage), style = MaterialTheme.typography.labelLarge)
+                        StatChip(
+                            value = "$redCount",
+                            label = "आपातकाल (RED)",
+                            bg = Color.Black.copy(alpha = 0.2f),
+                            fg = Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatChip(
+                            value = "$pendingSyncCount",
+                            label = Strings.get("pending", currentLanguage),
+                            bg = Color.White.copy(alpha = 0.22f),
+                            fg = Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
 
-        // ── Quick Actions ──
+        // ── Daily Clinical Care Tip ──
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = PrimaryLight),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Surface(color = Primary, shape = RoundedCornerShape(10.dp), modifier = Modifier.size(32.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "🌸 आज का क्लिनिकल संदेश (Daily Maternal Tip)",
+                        style = MaterialTheme.typography.labelLarge.copy(color = PrimaryDark, fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        "तीसरी तिमाही में हर सप्ताह गर्भवती का रक्तचाप और हीमोग्लोबिन अवश्य जांचें। सिस्टोलिक बीपी 140 से ऊपर होने पर तुरंत केयर डेस्क से संपर्क करें।",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Neutral800, lineHeight = 18.sp)
+                    )
+                }
+            }
+        }
+
+        // ── Triage Summary Cards ──
+        Text(
+            text = Strings.get("triage_summary", currentLanguage),
+            style = MaterialTheme.typography.titleMedium.copy(
+                color = Neutral900,
+                fontWeight = FontWeight.Bold
+            )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            TriageCard(
+                modifier = Modifier.weight(1f),
+                count = redCount,
+                label = Strings.get("red_risk", currentLanguage),
+                color = TriageRed,
+                bgColor = TriageRedBg
+            )
+            TriageCard(
+                modifier = Modifier.weight(1f),
+                count = amberCount,
+                label = Strings.get("amber_risk", currentLanguage),
+                color = TriageAmber,
+                bgColor = TriageAmberBg
+            )
+            TriageCard(
+                modifier = Modifier.weight(1f),
+                count = greenCount,
+                label = Strings.get("green_risk", currentLanguage),
+                color = TriageGreen,
+                bgColor = TriageGreenBg
+            )
+        }
+
+        // ── Quick Actions Grid (4 Tiles) ──
         Text(
             text = Strings.get("quick_actions", currentLanguage),
             style = MaterialTheme.typography.titleMedium.copy(
@@ -488,7 +455,8 @@ fun DashboardScreen(
         ) {
             ActionTile(
                 modifier = Modifier.weight(1f),
-                icon = Icons.Default.Add,
+                icon = Icons.Default.Mic,
+                badge = "SPEECH-AI",
                 label = Strings.get("new_assessment", currentLanguage),
                 bgColor = PrimaryLight,
                 iconColor = Primary,
@@ -496,27 +464,130 @@ fun DashboardScreen(
             )
             ActionTile(
                 modifier = Modifier.weight(1f),
-                icon = Icons.AutoMirrored.Filled.List,
-                label = Strings.get("my_cases", currentLanguage),
+                icon = Icons.Default.AutoAwesome,
+                badge = "SDG 3",
+                label = "SakhiAI Copilot",
                 bgColor = AccentIndigoBg,
                 iconColor = AccentIndigo,
-                onClick = onMyCasesClick
+                onClick = onSakhiAiClick
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ActionTile(
+                modifier = Modifier.weight(1f),
+                icon = Icons.AutoMirrored.Filled.List,
+                badge = "${PatientRepository.getTotalCount()} Cases",
+                label = Strings.get("my_cases", currentLanguage),
+                bgColor = Neutral100,
+                iconColor = Neutral800,
+                onClick = onMyCasesClick
+            )
+            ActionTile(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Sync,
+                badge = if (pendingSyncCount > 0) "$pendingSyncCount Pending" else "All Synced",
+                label = Strings.get("sync_now", currentLanguage),
+                bgColor = TriageGreenBg,
+                iconColor = TriageGreen,
+                onClick = onSyncNowClick
+            )
+        }
+
+        // ── Emergency Helpline Speed-Dial Bar ──
+        Text(
+            text = "आपातकालीन हेल्पलाइन (Emergency Speed-Dial)",
+            style = MaterialTheme.typography.titleMedium.copy(
+                color = Neutral900,
+                fontWeight = FontWeight.Bold
+            )
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HelplineButton(
+                modifier = Modifier.weight(1f),
+                number = "108",
+                label = "108 Ambulance",
+                color = TriageRed,
+                onClick = {
+                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:108"))
+                    context.startActivity(intent)
+                }
+            )
+            HelplineButton(
+                modifier = Modifier.weight(1f),
+                number = "104",
+                label = "104 Health Help",
+                color = AccentIndigo,
+                onClick = {
+                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:104"))
+                    context.startActivity(intent)
+                }
+            )
+            HelplineButton(
+                modifier = Modifier.weight(1f),
+                number = "CHC",
+                label = "PHC/CHC Doctor",
+                color = TriageGreen,
+                onClick = {
+                    Toast.makeText(context, "Dialing CHC Medical Officer...", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
     }
 }
 
 @Composable
-private fun StatChip(value: String, label: String, bg: Color, fg: Color) {
-    Surface(color = bg, shape = RoundedCornerShape(12.dp)) {
+private fun HelplineButton(
+    modifier: Modifier,
+    number: String,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = SurfaceWhite,
+        shape = RoundedCornerShape(16.dp),
+        shadowElevation = 1.dp,
+        modifier = modifier
+    ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                number,
+                style = MaterialTheme.typography.titleLarge.copy(color = color, fontWeight = FontWeight.ExtraBold)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall.copy(color = Neutral600),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatChip(value: String, label: String, bg: Color, fg: Color, modifier: Modifier = Modifier) {
+    Surface(color = bg, shape = RoundedCornerShape(14.dp), modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, style = MaterialTheme.typography.titleLarge.copy(color = fg, fontWeight = FontWeight.Bold))
-            Text(label, style = MaterialTheme.typography.labelMedium.copy(color = fg.copy(alpha = 0.85f)))
+            Text(value, style = MaterialTheme.typography.titleLarge.copy(color = fg, fontWeight = FontWeight.ExtraBold))
+            Text(label, style = MaterialTheme.typography.labelSmall.copy(color = fg.copy(alpha = 0.9f)), maxLines = 1)
         }
     }
 }
@@ -553,6 +624,7 @@ private fun TriageCard(modifier: Modifier, count: Int, label: String, color: Col
 private fun ActionTile(
     modifier: Modifier,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    badge: String,
     label: String,
     bgColor: Color,
     iconColor: Color,
@@ -568,28 +640,38 @@ private fun ActionTile(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(bgColor),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(26.dp))
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
             }
             Text(
                 label,
-                style = MaterialTheme.typography.labelLarge.copy(
+                style = MaterialTheme.typography.labelMedium.copy(
                     color = Neutral900,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            Surface(
+                color = bgColor,
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Text(
+                    badge,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(color = iconColor, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                )
+            }
         }
     }
 }
