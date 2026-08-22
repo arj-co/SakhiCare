@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sakhicare-backend
+  labels:
+    app: sakhicare
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sakhicare
+  template:
+    metadata:
+      labels:
+        app: sakhicare
+    spec:
+      containers:
+      - name: backend
+        image: sakhicare/backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
