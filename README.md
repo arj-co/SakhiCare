@@ -176,8 +176,8 @@ The current repository provides a clean architecture and UI starter template. Th
 
 ## Team
 
-- **Aarya S**
 - **Arjun S**
+- **Saurav G**
 
 ---
 
