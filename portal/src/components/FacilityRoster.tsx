@@ -24,92 +24,94 @@ export const FacilityRoster: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ padding: "0 24px 32px 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+    <div className="section-container">
+      <div className="header-row">
         <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#ffffff" }}>
-            Referral Health Facilities Directory
+          <div className="technical-label" style={{ marginBottom: "4px" }}>
+            <span>04 / REFERRAL DIRECTORY · MATERNAL CARE INFRASTRUCTURE</span>
+          </div>
+          <h2 className="title-primary">
+            Referral Health <span className="editorial-italic">Facilities Directory</span>
           </h2>
-          <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-            Primary Health Centres (PHCs) and Community Health Centres (CHCs) in active district catchment
+          <p className="subtitle">
+            Primary Health Centres (PHCs) and First Referral Units (CHCs / FRUs) with verified 24x7 obstetric capabilities.
           </p>
         </div>
-        <button onClick={loadData} className="btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px" }}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Refresh Roster</span>
+        <button onClick={loadData} className="btn-outline" style={{ fontSize: "0.8rem", padding: "7px 16px" }}>
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          <span>Refresh Directory</span>
         </button>
       </div>
 
       {loading ? (
-        <div style={{ padding: "48px", textAlign: "center", color: "var(--text-muted)" }}>
-          Loading facilities...
+        <div className="loading-state">
+          Loading referral health facilities...
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "16px" }}>
           {facilities.map((f) => (
             <div
               key={f.id}
-              className="glass-panel"
               style={{
-                padding: "20px",
-                borderLeft: f.type === "CHC" ? "4px solid #38bdf8" : "4px solid #10b981",
+                background: "var(--panel-white)",
+                border: "1px solid var(--rule-muted)",
+                borderRadius: "var(--radius-lg)",
+                padding: "20px 24px",
+                borderLeft: f.type === "CHC" ? "4px solid var(--navy-deep)" : "4px solid var(--seafoam-dark)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "14px"
+                gap: "14px",
+                boxShadow: "var(--shadow-sm)"
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "8px",
-                    background: f.type === "CHC" ? "rgba(56, 189, 248, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                    width: "38px",
+                    height: "38px",
+                    borderRadius: "10px",
+                    background: "var(--panel-pale)",
+                    border: "1px solid var(--rule-muted)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center"
                   }}>
-                    <Hospital size={20} color={f.type === "CHC" ? "#38bdf8" : "#10b981"} />
+                    <Hospital size={18} color="var(--navy-deep)" />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#ffffff" }}>{f.name}</h3>
-                    <span className="mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{f.id}</span>
+                    <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--navy-deep)", margin: 0 }}>{f.name}</h3>
+                    <span className="mono-badge">{f.id}</span>
                   </div>
                 </div>
-                <span style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: "4px",
-                  background: f.type === "CHC" ? "rgba(56, 189, 248, 0.2)" : "rgba(16, 185, 129, 0.2)",
-                  color: f.type === "CHC" ? "#7dd3fc" : "#6ee7b7"
-                }}>
+                <span className={f.type === "CHC" ? "badge badge-blue" : "badge badge-green"}>
                   {f.type}
                 </span>
               </div>
 
-              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ fontSize: "0.825rem", color: "var(--text-body)", display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <MapPin size={14} color="var(--text-muted)" />
-                  <span>Catchment: <strong>{f.catchment_area || "General District"}</strong></span>
+                  <span>Catchment: <strong>{f.catchment_area || "District Rural Catchment"}</strong></span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Phone size={14} color="var(--text-muted)" />
-                  <span>Emergency Desk: <strong>{f.contact_phone || "108"}</strong></span>
+                  <span>Desk Line: <strong className="mono">{f.contact_phone || "0612-2554401"}</strong></span>
                 </div>
               </div>
 
               <div style={{
-                background: "rgba(255, 255, 255, 0.02)",
+                background: "var(--panel-pale)",
+                border: "1px solid var(--rule-soft)",
                 padding: "8px 12px",
-                borderRadius: "6px",
+                borderRadius: "var(--radius-sm)",
                 fontSize: "0.75rem",
                 color: "var(--text-muted)",
                 display: "flex",
-                justifyContent: "space-between"
+                justifyContent: "space-between",
+                alignItems: "center"
               }}>
-                <span>Emergency Obstetric Care</span>
-                <span style={{ color: "#34d399", fontWeight: 600 }}>24x7 Available</span>
+                <span>Emergency Obstetric Service:</span>
+                <span style={{ color: "var(--seafoam-dark)", fontWeight: 700 }}>24x7 BEmOC / C-Section OT</span>
               </div>
             </div>
           ))}

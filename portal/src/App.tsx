@@ -187,21 +187,50 @@ export const App: React.FC = () => {
 
       {/* Main Screen Content */}
       <main style={{ flex: 1 }}>
+        {/* Editorial Statement Header */}
+        <div className="hero-editorial-bar">
+          <div>
+            <div className="technical-label" style={{ marginBottom: "6px" }}>
+              <span>SYSTEM · MATERNAL CLINICAL RESPONSE</span>
+            </div>
+            <div className="hero-statement">
+              Quiet intelligence, <span className="editorial-italic">made personal</span>.
+            </div>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px", maxWidth: "620px" }}>
+              Frontline ASHA screening with verified offline parity, auditable 108 transport coordination, and clinical decision support under your control.
+            </p>
+          </div>
+          <div className="hero-editorial-meta">
+            <div className="hero-meta-chip">
+              <span style={{ color: "var(--coral-dark)", fontWeight: 700 }}>●</span>
+              <span>{criticalCount} Critical Cases</span>
+            </div>
+            <div className="hero-meta-chip">
+              <span style={{ color: "var(--seafoam-dark)", fontWeight: 700 }}>●</span>
+              <span>MoHFW v1.0 Protocol</span>
+            </div>
+            <div className="hero-meta-chip">
+              <span style={{ color: "var(--navy-deep)", fontWeight: 700 }}>●</span>
+              <span>{cases.length} Synced Records</span>
+            </div>
+          </div>
+        </div>
+
         {errorMessage && (
           <div style={{
-            margin: "0 24px 20px 24px",
+            margin: "0 28px 20px 28px",
             padding: "12px 16px",
-            borderRadius: "8px",
-            background: "rgba(239, 68, 68, 0.15)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            color: "#fca5a5",
+            borderRadius: "var(--radius-md)",
+            background: "var(--coral-bg)",
+            border: "1px solid rgba(226, 123, 112, 0.4)",
+            color: "var(--coral-dark)",
             fontSize: "0.85rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between"
           }}>
             <span>⚠️ Backend connection notice: {errorMessage} (Displaying cached/local queue)</span>
-            <button onClick={loadCases} className="btn-outline" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>
+            <button onClick={loadCases} className="btn-outline" style={{ fontSize: "0.75rem", padding: "4px 12px" }}>
               Retry
             </button>
           </div>
@@ -253,29 +282,32 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Footer */}
+      {/* Editorial Footer */}
       <footer style={{
-        padding: "16px 24px",
-        borderTop: "1px solid var(--border-subtle)",
-        background: "rgba(9, 13, 22, 0.9)",
-        fontSize: "0.75rem",
+        padding: "20px 28px",
+        borderTop: "1px solid var(--rule-muted)",
+        background: "var(--panel-pale)",
+        fontSize: "0.78rem",
         color: "var(--text-muted)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
-        gap: "12px"
+        gap: "14px"
       }}>
         <div>
-          <span>SakhiCare Maternal Danger-Sign Screening & Response Platform • </span>
-          <span style={{ color: "#38bdf8" }}>MoHFW Clinical Rule Pack v1.0</span>
+          <span style={{ color: "var(--navy-deep)", fontWeight: 600 }}>SakhiCare</span>
+          <span> — Point-of-Care Maternal Danger-Sign Screening & Response Platform • </span>
+          <span style={{ fontFamily: "var(--font-mono)", color: "var(--navy-deep)" }}>MOHFW-HRP-V1.0</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <span>Offline Room SQLCipher ASHA App</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", fontFamily: "var(--font-mono)", fontSize: "0.72rem" }}>
+          <span>Offline SQLCipher</span>
           <span>•</span>
-          <span>Durable FastAPI Backend</span>
+          <span>Durable Sync</span>
           <span>•</span>
-          <span>FHIR R4 Interoperability</span>
+          <span>FHIR R4</span>
+          <span>•</span>
+          <span>108 Coordination</span>
         </div>
       </footer>
 

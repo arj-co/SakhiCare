@@ -100,10 +100,10 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     }
   };
 
-  // Handle Transport Submission
+  // Handle Transport Coordination Submission
   const handleSubmitTransport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vehicleId.trim()) return;
+    if (!vehicleId.trim() || !destinationFacility.trim()) return;
 
     setIsSubmittingTransport(true);
     setErrorMessage(null);
@@ -111,23 +111,23 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
       const updated = await updateTransport(caseId, vehicleId, destinationFacility, driverPhone);
       setCurrentCase(updated);
       onCaseUpdated(updated);
-      setSuccessMessage(`108 Ambulance ${vehicleId} dispatched successfully to patient location!`);
+      setSuccessMessage(`108 Transport ${vehicleId} successfully dispatched to ${destinationFacility}!`);
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : "Failed to dispatch transport");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to update transport status");
     } finally {
       setIsSubmittingTransport(false);
     }
   };
 
-  // Handle FHIR Export
+  // Fetch and show FHIR R4 Bundle
   const handleOpenFhir = async () => {
     setFhirModalOpen(true);
     setFhirLoading(true);
     try {
-      const data = await fetchFhirBundle(caseId);
-      setFhirData(data);
-    } catch (err: unknown) {
-      setFhirData({ error: err instanceof Error ? err.message : "Failed to load FHIR bundle" });
+      const bundle = await fetchFhirBundle(caseId);
+      setFhirData(bundle);
+    } catch (err) {
+      setFhirData({ error: "Failed to export FHIR bundle", detail: String(err) });
     } finally {
       setFhirLoading(false);
     }
@@ -145,38 +145,26 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const canDispatchAct = currentUser.role === "DISPATCHER" || currentUser.role === "MEDICAL_OFFICER" || currentUser.role === "ADMIN";
 
   return (
-    <div style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "rgba(3, 7, 18, 0.85)",
-      backdropFilter: "blur(8px)",
-      zIndex: 1000,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "24px"
-    }}>
+    <div className="modal-overlay">
       <div 
-        className="glass-panel-elevated"
         style={{
           width: "100%",
-          maxWidth: "1100px",
+          maxWidth: "1120px",
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          border: risk === "RED" ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid var(--border-strong)",
-          boxShadow: risk === "RED" ? "0 0 32px rgba(239, 68, 68, 0.25)" : "var(--shadow-lg)"
+          background: "var(--panel-white)",
+          border: "1px solid var(--rule-muted)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lg)"
         }}
       >
         {/* Modal Header */}
         <div style={{
-          padding: "18px 24px",
-          background: "rgba(16, 23, 38, 0.95)",
-          borderBottom: "1px solid var(--border-subtle)",
+          padding: "18px 26px",
+          background: "var(--panel-pale)",
+          borderBottom: "1px solid var(--rule-muted)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -185,28 +173,27 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <span className={risk === "RED" ? "badge-red" : (risk === "AMBER" ? "badge-amber" : "badge-green")}>
-              {risk === "RED" && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--risk-red)" }} className="animate-pulse-red" />}
               {risk} RISK
             </span>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <h2 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#ffffff" }}>
+                <h2 style={{ fontSize: "1.3rem", fontWeight: 600, color: "var(--navy-deep)", margin: 0 }}>
                   {currentCase.patient_name}
                 </h2>
-                <span className="mono" style={{ fontSize: "0.8rem", color: "var(--text-muted)", background: "rgba(255, 255, 255, 0.05)", padding: "2px 8px", borderRadius: "4px" }}>
+                <span className="mono-badge">
                   {caseId}
                 </span>
                 {currentCase.is_demo && (
-                  <span style={{ fontSize: "0.7rem", background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
-                    Demo Mode
+                  <span style={{ fontSize: "0.68rem", background: "var(--panel-white)", color: "var(--navy-deep)", border: "1px solid var(--rule-muted)", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                    DEMO
                   </span>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "3px" }}>
-                <span>Village: <strong>{currentCase.village}</strong></span>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "3px" }}>
+                <span>Village: <strong style={{ color: "var(--text-body)" }}>{currentCase.village}</strong></span>
                 {currentCase.age_years && <span>Age: {currentCase.age_years}y</span>}
-                {currentCase.gestational_age_weeks && <span>Gestation: <strong>{currentCase.gestational_age_weeks} weeks</strong></span>}
-                {currentCase.gravida !== null && currentCase.gravida !== undefined && <span>Gravida: G{currentCase.gravida}P{currentCase.para ?? 0}</span>}
+                {currentCase.gestational_age_weeks && <span>Gestation: <strong style={{ color: "var(--text-body)" }}>{currentCase.gestational_age_weeks}w</strong></span>}
+                {currentCase.gravida !== null && currentCase.gravida !== undefined && <span>G{currentCase.gravida}P{currentCase.para ?? 0}</span>}
               </div>
             </div>
           </div>
@@ -215,27 +202,17 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             <button
               onClick={handleOpenFhir}
               className="btn-outline"
-              style={{ fontSize: "0.75rem", padding: "6px 12px" }}
+              style={{ fontSize: "0.75rem", padding: "6px 14px" }}
               title="Export FHIR R4 Bundle"
             >
-              <FileCode2 size={14} color="#38bdf8" />
+              <FileCode2 size={13} color="var(--navy-deep)" />
               <span>FHIR R4</span>
             </button>
 
             <button
               onClick={onClose}
-              style={{
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: "8px",
-                width: "34px",
-                height: "34px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--text-secondary)",
-                cursor: "pointer"
-              }}
+              className="btn-close"
+              title="Close modal"
             >
               <X size={18} />
             </button>
@@ -245,7 +222,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
         {/* Modal Body: Two-Column Responsive Layout */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
           gap: "20px",
           padding: "24px",
           overflowY: "auto",
@@ -253,34 +230,34 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
         }}>
 
           {/* LEFT COLUMN: Clinical Assessment & Audio Artifact */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             
             {/* Vitals Summary Card */}
-            <div className="glass-panel" style={{ padding: "18px" }}>
-              <h3 style={{ fontSize: "0.95rem", color: "#ffffff", marginBottom: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Stethoscope size={16} color="#38bdf8" />
-                <span>Maternal Clinical Vitals</span>
-              </h3>
+            <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div className="technical-label" style={{ marginBottom: "10px" }}>
+                <Stethoscope size={13} color="var(--navy-deep)" />
+                <span>MATERNAL CLINICAL VITALS</span>
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                 {/* BP */}
                 <div style={{
                   padding: "12px",
-                  borderRadius: "8px",
+                  borderRadius: "var(--radius-md)",
                   background: assessment?.blood_pressure?.includes("16") || assessment?.blood_pressure?.includes("11")
-                    ? "rgba(239, 68, 68, 0.15)"
-                    : "rgba(255, 255, 255, 0.04)",
+                    ? "var(--coral-bg)"
+                    : "var(--panel-white)",
                   border: assessment?.blood_pressure?.includes("16")
-                    ? "1px solid rgba(239, 68, 68, 0.4)"
-                    : "1px solid var(--border-subtle)"
+                    ? "1px solid rgba(226, 123, 112, 0.5)"
+                    : "1px solid var(--rule-muted)"
                 }}>
-                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Blood Pressure</div>
-                  <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#ffffff", marginTop: "2px" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Blood Pressure</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--navy-deep)", marginTop: "2px", fontFamily: "var(--font-mono)" }}>
                     {assessment?.blood_pressure || "Unmeasured"}
                   </div>
                   {assessment?.blood_pressure?.includes("16") && (
-                    <span style={{ fontSize: "0.7rem", color: "#f87171", fontWeight: 700 }}>
-                      ⚠️ Severe Gestational Hypertension
+                    <span style={{ fontSize: "0.68rem", color: "var(--coral-dark)", fontWeight: 700 }}>
+                      ⚠️ Severe Hypertensive Crisis
                     </span>
                   )}
                 </div>
@@ -288,20 +265,20 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                 {/* Hb */}
                 <div style={{
                   padding: "12px",
-                  borderRadius: "8px",
+                  borderRadius: "var(--radius-md)",
                   background: assessment?.haemoglobin && assessment.haemoglobin < 7.0
-                    ? "rgba(239, 68, 68, 0.15)"
-                    : "rgba(255, 255, 255, 0.04)",
+                    ? "var(--coral-bg)"
+                    : "var(--panel-white)",
                   border: assessment?.haemoglobin && assessment.haemoglobin < 7.0
-                    ? "1px solid rgba(239, 68, 68, 0.4)"
-                    : "1px solid var(--border-subtle)"
+                    ? "1px solid rgba(226, 123, 112, 0.5)"
+                    : "1px solid var(--rule-muted)"
                 }}>
-                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Haemoglobin</div>
-                  <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#ffffff", marginTop: "2px" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Haemoglobin</div>
+                  <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--navy-deep)", marginTop: "2px", fontFamily: "var(--font-mono)" }}>
                     {assessment?.haemoglobin ? `${assessment.haemoglobin} g/dL` : "Unmeasured"}
                   </div>
                   {assessment?.haemoglobin && assessment.haemoglobin < 7.0 && (
-                    <span style={{ fontSize: "0.7rem", color: "#f87171", fontWeight: 700 }}>
+                    <span style={{ fontSize: "0.68rem", color: "var(--coral-dark)", fontWeight: 700 }}>
                       ⚠️ Severe Maternal Anemia
                     </span>
                   )}
@@ -310,26 +287,26 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 
               {/* Danger Signs Checklist */}
               <div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "8px", fontWeight: 600 }}>
-                  Observed Danger Signs:
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "8px", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
+                  OBSERVED DANGER SIGNS:
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                   {Object.entries(dangerSigns).map(([signKey, isPresent]) => {
                     const label = signKey.replace(/_/g, " ");
                     return (
                       <span
                         key={signKey}
                         style={{
-                          fontSize: "0.75rem",
-                          padding: "4px 10px",
-                          borderRadius: "6px",
-                          background: isPresent ? "rgba(239, 68, 68, 0.2)" : "rgba(255, 255, 255, 0.04)",
-                          color: isPresent ? "#fca5a5" : "var(--text-dim)",
-                          border: isPresent ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid var(--border-subtle)",
-                          fontWeight: isPresent ? 700 : 400,
+                          fontSize: "0.72rem",
+                          padding: "3px 10px",
+                          borderRadius: "var(--radius-pill)",
+                          background: isPresent ? "var(--coral-bg)" : "var(--panel-white)",
+                          color: isPresent ? "var(--coral-dark)" : "var(--text-muted)",
+                          border: isPresent ? "1px solid rgba(226, 123, 112, 0.4)" : "1px solid var(--rule-muted)",
+                          fontWeight: isPresent ? 700 : 500,
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "6px"
+                          gap: "5px"
                         }}
                       >
                         {isPresent ? "⚠️" : "✓"} {label}
@@ -342,178 +319,208 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             </div>
 
             {/* MoHFW Clinical Triage Protocol Rationale */}
-            <div className="glass-panel" style={{ padding: "18px" }}>
-              <h3 style={{ fontSize: "0.95rem", color: "#ffffff", marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <ShieldCheck size={16} color="#10b981" />
-                <span>Clinical Triage Rationale (MoHFW Guidelines)</span>
-              </h3>
-
-              <div style={{
-                background: "rgba(0, 0, 0, 0.2)",
-                padding: "12px",
-                borderRadius: "8px",
-                fontSize: "0.85rem",
-                color: "var(--text-secondary)",
-                lineHeight: 1.6,
-                marginBottom: "14px"
-              }}>
-                {assessment?.clinical_rationale || "Clinical evaluation according to MoHFW High-Risk Pregnancy guidelines."}
+            <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div className="technical-label" style={{ marginBottom: "10px" }}>
+                <ShieldCheck size={13} color="var(--navy-deep)" />
+                <span>CLINICAL TRIAGE RATIONALE · MOHFW PROTOCOL</span>
               </div>
 
-              {/* Protocol Recommendation */}
-              <div style={{
-                background: risk === "RED" ? "rgba(239, 68, 68, 0.1)" : "rgba(14, 165, 233, 0.1)",
-                border: risk === "RED" ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid rgba(14, 165, 233, 0.3)",
-                borderRadius: "8px",
-                padding: "12px",
-                fontSize: "0.8rem",
-                color: "#ffffff"
-              }}>
-                <div style={{ fontWeight: 700, color: risk === "RED" ? "#f87171" : "#38bdf8", marginBottom: "4px" }}>
-                  Recommended Action Protocol:
+              <div style={{ fontSize: "0.85rem", color: "var(--text-body)", lineHeight: 1.5, marginBottom: "12px" }}>
+                {assessment?.clinical_rationale || "Clinical assessment pending triage evaluation."}
+              </div>
+
+              {assessment?.recommended_protocol && (
+                <div style={{
+                  background: "var(--panel-pale)",
+                  border: "1px solid var(--rule-muted)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "12px",
+                  marginBottom: "12px"
+                }}>
+                  <div style={{ fontSize: "0.7rem", color: "var(--text-navy)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>
+                    Recommended Clinical Action:
+                  </div>
+                  <div style={{ fontSize: "0.825rem", color: "var(--text-body)" }}>
+                    {assessment.recommended_protocol}
+                  </div>
                 </div>
-                {assessment?.recommended_protocol || "Immediate facility referral and monitoring."}
+              )}
+
+              {/* ASHA Safe Actions vs Clinician Directed Actions */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div style={{ background: "var(--panel-white)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-sm)", padding: "10px" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--seafoam-dark)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>
+                    ✓ Frontline Safe Actions:
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                    {(assessment?.asha_safe_actions || ["Call 108 emergency ambulance", "Place mother in left lateral tilt", "Accompany to primary facility"]).map((act, i) => (
+                      <li key={i} style={{ marginBottom: "2px" }}>{act}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div style={{ background: "var(--panel-white)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-sm)", padding: "10px" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--coral-dark)", fontWeight: 700, textTransform: "uppercase", marginBottom: "4px" }}>
+                    ⚡ Clinician-Directed Only:
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                    {(assessment?.clinician_directed_actions || ["IV cannulation & fluids", "Magnesium Sulphate loading dose", "Antihypertensive administration"]).map((act, i) => (
+                      <li key={i} style={{ marginBottom: "2px" }}>{act}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
 
-            {/* Voice Note Artifact Inspector */}
+            {/* Frontline Voice Note Audio Player */}
             {currentCase.audio_artifact && (
-              <div className="glass-panel" style={{ padding: "18px", borderLeft: "4px solid #38bdf8" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                  <h3 style={{ fontSize: "0.95rem", color: "#ffffff", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Mic size={16} color="#38bdf8" />
-                    <span>Point-of-Care Voice Note Artifact</span>
-                  </h3>
-                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                    Verified by ASHA
+              <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <div className="technical-label">
+                    <Mic size={13} color="var(--navy-deep)" />
+                    <span>FRONTLINE VOICE NOTE RECORDING</span>
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                    90-DAY RETENTION
                   </span>
                 </div>
 
-                {/* Audio Player */}
-                <div style={{ background: "rgba(0, 0, 0, 0.3)", padding: "12px", borderRadius: "8px", marginBottom: "14px" }}>
+                {currentCase.audio_artifact.transcript && (
+                  <div style={{
+                    background: "var(--panel-pale)",
+                    border: "1px solid var(--rule-muted)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "10px 12px",
+                    fontSize: "0.825rem",
+                    color: "var(--text-body)",
+                    marginBottom: "10px",
+                    fontStyle: "italic"
+                  }}>
+                    "{currentCase.audio_artifact.transcript}"
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <audio
                     controls
                     src={getAudioStreamUrl(caseId)}
                     onError={() => setAudioError(true)}
                     style={{ width: "100%", height: "36px" }}
                   />
-                  {audioError && (
-                    <div style={{ fontSize: "0.75rem", color: "#f87171", marginTop: "6px" }}>
-                      Audio file streaming from backend storage...
-                    </div>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px", fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                    <span className="mono">SHA: {currentCase.audio_artifact.sha256.substring(0, 16)}...</span>
-                    <span>Retention: 90 days MoHFW</span>
-                  </div>
                 </div>
-
-                {/* Transcript vs Form Fields */}
-                <div style={{ background: "rgba(14, 165, 233, 0.05)", border: "1px solid rgba(56, 189, 248, 0.2)", borderRadius: "8px", padding: "12px" }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#38bdf8", marginBottom: "4px" }}>
-                    Audio Transcript (Indic Voice Dictation):
+                {audioError && (
+                  <div style={{ fontSize: "0.72rem", color: "var(--coral-dark)", marginTop: "4px" }}>
+                    Audio playback unavailable; encrypted voice artifact retained on ASHA local storage.
                   </div>
-                  <p style={{ fontSize: "0.85rem", color: "#ffffff", fontStyle: "italic" }}>
-                    "{currentCase.audio_artifact.transcript || "मरीज गर्भवती, तेज सिरदर्द, रक्तचाप अधिक और कमजोरी (ASHA confirmed)"}"
-                  </p>
-                </div>
+                )}
               </div>
             )}
 
           </div>
 
-          {/* RIGHT COLUMN: Doctor Guidance, Transport, & Audit Timeline */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+          {/* RIGHT COLUMN: Doctor Orders, 108 Dispatch & Event History */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             
-            {/* Medical Officer Advisory Console */}
-            <div className="glass-panel" style={{ padding: "18px", border: "1px solid rgba(14, 165, 233, 0.3)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <h3 style={{ fontSize: "0.95rem", color: "#ffffff", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Stethoscope size={16} color="#38bdf8" />
-                  <span>Medical Officer Clinical Guidance</span>
-                </h3>
+            {/* Feedback Banners */}
+            {successMessage && (
+              <div className="success-banner" style={{ margin: 0, padding: "10px 14px", fontSize: "0.8rem" }}>
+                ✅ {successMessage}
+              </div>
+            )}
+            {errorMessage && (
+              <div className="error-banner" style={{ margin: 0, padding: "10px 14px", fontSize: "0.8rem" }}>
+                ⚠️ {errorMessage}
+              </div>
+            )}
+
+            {/* Medical Officer Advisory Order Console */}
+            <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <div className="technical-label">
+                  <Stethoscope size={13} color="var(--navy-deep)" />
+                  <span>MEDICAL OFFICER ADVISORY & ORDER</span>
+                </div>
                 {currentCase.doctor_advisory && (
-                  <span style={{ fontSize: "0.7rem", background: "rgba(16, 185, 129, 0.2)", color: "#6ee7b7", padding: "2px 8px", borderRadius: "999px", fontWeight: 700 }}>
-                    Advisory Active
+                  <span className="badge badge-green">
+                    ISSUED
                   </span>
                 )}
               </div>
 
-              {/* If advisory already issued, display it prominently */}
+              {/* Recorded Advisory Display */}
               {currentCase.doctor_advisory && (
                 <div style={{
-                  background: "rgba(16, 185, 129, 0.1)",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                  borderRadius: "8px",
+                  background: "var(--seafoam-bg)",
+                  border: "1px solid rgba(31, 95, 88, 0.3)",
+                  borderRadius: "var(--radius-sm)",
                   padding: "12px",
                   marginBottom: "14px"
                 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#6ee7b7", fontWeight: 700, marginBottom: "4px" }}>
-                    Active Doctor Order:
+                  <div style={{ fontSize: "0.7rem", color: "var(--seafoam-dark)", fontWeight: 700, marginBottom: "4px" }}>
+                    Active Doctor Clinical Guidance:
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#ffffff", fontWeight: 500 }}>
-                    {currentCase.doctor_advisory}
+                  <div style={{ fontSize: "0.85rem", color: "var(--navy-deep)", fontWeight: 500 }}>
+                    "{currentCase.doctor_advisory}"
                   </div>
                 </div>
               )}
 
-              {/* Advisory Input Form */}
+              {/* Order Form (Available to MO & Admin) */}
               {canDoctorAct ? (
                 <form onSubmit={handleSubmitAdvisory}>
                   <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
-                      Clinical Order / Immediate Instructions for ASHA Worker:
+                    <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                      RAPID CLINICAL ORDER TEMPLATES:
                     </label>
-                    <textarea
-                      rows={3}
-                      value={advisoryText}
-                      onChange={(e) => setAdvisoryText(e.target.value)}
-                      placeholder="e.g. Administer oral labetalol 100mg stat; position in left lateral tilt; call 108 ambulance immediately..."
-                      style={{ width: "100%", resize: "vertical", fontSize: "0.85rem" }}
-                      required
-                    />
-                  </div>
-
-                  {/* Quick Templates */}
-                  <div style={{ marginBottom: "12px" }}>
-                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
-                      Quick Order Templates:
-                    </span>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      {quickTemplates.map((tmpl, idx) => (
+                      {quickTemplates.map((t, idx) => (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => setAdvisoryText(tmpl)}
+                          onClick={() => setAdvisoryText(t)}
                           style={{
                             textAlign: "left",
-                            padding: "4px 8px",
-                            background: "rgba(255, 255, 255, 0.03)",
-                            border: "1px solid var(--border-subtle)",
-                            borderRadius: "4px",
-                            color: "var(--text-secondary)",
-                            fontSize: "0.7rem",
-                            cursor: "pointer"
+                            background: "var(--panel-white)",
+                            border: "1px solid var(--rule-muted)",
+                            borderRadius: "var(--radius-sm)",
+                            padding: "6px 10px",
+                            fontSize: "0.72rem",
+                            color: "var(--text-body)",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
                           }}
                         >
-                          + {tmpl.substring(0, 65)}...
+                          • {t}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Referral Facility Picker */}
-                  <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "14px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                      Referral Facility:
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                      DIRECT CLINICAL ORDER TO ASHA:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={advisoryText}
+                      onChange={(e) => setAdvisoryText(e.target.value)}
+                      placeholder="Enter emergency stabilization instructions, medication dosages, and transfer protocol..."
+                      style={{ width: "100%", fontSize: "0.825rem" }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                      DESTINATION REFERRAL FACILITY:
                     </label>
                     <select
                       value={referralFacility}
                       onChange={(e) => setReferralFacility(e.target.value)}
-                      style={{ flex: 1, fontSize: "0.8rem", padding: "6px 10px" }}
+                      style={{ width: "100%", fontSize: "0.825rem" }}
                     >
-                      <option value="FAC-01">Rampur Primary Health Centre (PHC)</option>
-                      <option value="FAC-02">Chandanpur Community Health Centre (CHC)</option>
+                      <option value="FAC-01">Rampur Primary Health Centre (PHC) — BEmOC Basic Care</option>
+                      <option value="FAC-02">Chandanpur Community Health Centre (CHC) — Blood Bank & Surgery</option>
                     </select>
                   </div>
 
@@ -523,27 +530,27 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     className="btn-primary"
                     style={{ width: "100%", justifyContent: "center" }}
                   >
-                    <Send size={14} />
+                    <Send size={13} />
                     <span>{isSubmittingAdvisory ? "Submitting Order..." : "Acknowledge & Send Guidance"}</span>
                   </button>
                 </form>
               ) : (
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic", background: "rgba(255, 255, 255, 0.02)", padding: "10px", borderRadius: "6px" }}>
+                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic", background: "var(--panel-pale)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
                   Clinical guidance orders require Medical Officer credentials. Current role: <strong>{currentUser.role}</strong>.
                 </div>
               )}
             </div>
 
             {/* 108 Emergency Transport Coordination Console */}
-            <div className="glass-panel" style={{ padding: "18px", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <h3 style={{ fontSize: "0.95rem", color: "#ffffff", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Truck size={16} color="#38bdf8" />
-                  <span>108 Emergency Transport Coordination</span>
-                </h3>
+            <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <div className="technical-label">
+                  <Truck size={13} color="var(--navy-deep)" />
+                  <span>108 EMERGENCY TRANSPORT COORDINATION</span>
+                </div>
                 {currentCase.ambulance_status && (
-                  <span style={{ fontSize: "0.7rem", background: "rgba(56, 189, 248, 0.2)", color: "#7dd3fc", padding: "2px 8px", borderRadius: "999px", fontWeight: 700 }}>
-                    Dispatched
+                  <span className="badge badge-blue">
+                    DISPATCHED
                   </span>
                 )}
               </div>
@@ -551,16 +558,16 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               {/* Dispatched Status Banner */}
               {currentCase.ambulance_status && (
                 <div style={{
-                  background: "rgba(56, 189, 248, 0.1)",
-                  border: "1px solid rgba(56, 189, 248, 0.3)",
-                  borderRadius: "8px",
-                  padding: "12px",
-                  marginBottom: "14px"
+                  background: "var(--blue-subtle)",
+                  border: "1px solid rgba(36, 73, 154, 0.25)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "10px 12px",
+                  marginBottom: "12px"
                 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#7dd3fc", fontWeight: 700, marginBottom: "4px" }}>
+                  <div style={{ fontSize: "0.7rem", color: "var(--navy-deep)", fontWeight: 700, marginBottom: "2px" }}>
                     Active 108 Transport Status:
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#ffffff", fontWeight: 600 }}>
+                  <div style={{ fontSize: "0.825rem", color: "var(--navy-deep)", fontWeight: 600 }}>
                     {currentCase.ambulance_status}
                   </div>
                 </div>
@@ -571,8 +578,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                 <form onSubmit={handleSubmitTransport}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                     <div>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-                        Ambulance ID:
+                      <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                        AMBULANCE ID:
                       </label>
                       <input
                         type="text"
@@ -584,8 +591,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-                        Driver Contact:
+                      <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                        DRIVER CONTACT:
                       </label>
                       <input
                         type="text"
@@ -598,8 +605,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </div>
 
                   <div style={{ marginBottom: "12px" }}>
-                    <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block", marginBottom: "4px" }}>
-                      Destination Facility:
+                    <label style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontFamily: "var(--font-mono)" }}>
+                      DESTINATION FACILITY:
                     </label>
                     <input
                       type="text"
@@ -615,56 +622,38 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     type="submit"
                     disabled={isSubmittingTransport || !vehicleId.trim()}
                     className="btn-primary"
-                    style={{ width: "100%", justifyContent: "center", background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" }}
+                    style={{ width: "100%", justifyContent: "center" }}
                   >
-                    <Truck size={14} />
-                    <span>{isSubmittingTransport ? "Dispatching..." : "Dispatch / Update 108 Ambulance"}</span>
+                    <Truck size={13} />
+                    <span>{isSubmittingTransport ? "Dispatching..." : "Update 108 Transport Status"}</span>
                   </button>
                 </form>
               ) : (
-                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic", background: "rgba(255, 255, 255, 0.02)", padding: "10px", borderRadius: "6px" }}>
-                  108 transport assignment requires Dispatcher or Medical Officer role. Current role: <strong>{currentUser.role}</strong>.
+                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontStyle: "italic", background: "var(--panel-pale)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
+                  Ambulance dispatch requires Dispatcher or Medical Officer role.
                 </div>
               )}
             </div>
 
-            {/* Chronological Audit Timeline */}
-            <div className="glass-panel" style={{ padding: "18px" }}>
-              <h3 style={{ fontSize: "0.95rem", color: "#ffffff", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <History size={16} color="#c084fc" />
-                <span>Immutable Case Audit History</span>
-              </h3>
+            {/* Case Event Timeline */}
+            <div style={{ background: "var(--panel-card)", border: "1px solid var(--rule-muted)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div className="technical-label" style={{ marginBottom: "10px" }}>
+                <History size={13} color="var(--navy-deep)" />
+                <span>CASE AUDIT TIMELINE</span>
+              </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "200px", overflowY: "auto", paddingRight: "4px" }}>
-                {currentCase.timeline && currentCase.timeline.length > 0 ? (
-                  currentCase.timeline.map((evt, idx) => (
-                    <div
-                      key={evt.event_id || evt.id || idx}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: "6px",
-                        background: "rgba(255, 255, 255, 0.03)",
-                        border: "1px solid var(--border-subtle)",
-                        fontSize: "0.75rem"
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2px" }}>
-                        <span style={{ fontWeight: 700, color: "#38bdf8" }}>
-                          {evt.event_type}
-                        </span>
-                        <span style={{ color: "var(--text-muted)", fontSize: "0.65rem" }}>
-                          {evt.actor_role} • {new Date(evt.occurred_at * 1000).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div style={{ color: "var(--text-secondary)" }}>
-                        {evt.summary}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "180px", overflowY: "auto" }}>
+                {(currentCase.timeline || []).length === 0 ? (
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>No event history recorded yet.</span>
+                ) : (
+                  (currentCase.timeline || []).map((evt, i) => (
+                    <div key={i} style={{ fontSize: "0.75rem", borderLeft: "2px solid var(--rule-muted)", paddingLeft: "8px" }}>
+                      <div style={{ color: "var(--navy-deep)", fontWeight: 600 }}>{evt.summary}</div>
+                      <div style={{ color: "var(--text-muted)", fontSize: "0.68rem" }}>
+                        by {evt.actor_role} ({evt.actor_id}) • {new Date(evt.occurred_at * 1000).toLocaleTimeString()}
                       </div>
                     </div>
                   ))
-                ) : (
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "8px" }}>
-                    Synced to cloud • Awaiting first operator action
-                  </div>
                 )}
               </div>
             </div>
@@ -673,98 +662,61 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 
         </div>
 
-        {/* Feedback Alert Toast */}
-        {successMessage && (
-          <div style={{
-            margin: "0 24px 16px 24px",
-            padding: "10px 16px",
-            background: "rgba(16, 185, 129, 0.15)",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
-            borderRadius: "8px",
-            color: "#6ee7b7",
-            fontSize: "0.85rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between"
-          }}>
-            <span>✓ {successMessage}</span>
-            <button onClick={() => setSuccessMessage(null)} style={{ background: "transparent", border: "none", color: "#6ee7b7", cursor: "pointer" }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div style={{
-            margin: "0 24px 16px 24px",
-            padding: "10px 16px",
-            background: "rgba(239, 68, 68, 0.15)",
-            border: "1px solid rgba(239, 68, 68, 0.4)",
-            borderRadius: "8px",
-            color: "#fca5a5",
-            fontSize: "0.85rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between"
-          }}>
-            <span>⚠️ {errorMessage}</span>
-            <button onClick={() => setErrorMessage(null)} style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer" }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
       </div>
 
-      {/* FHIR R4 Bundle Modal */}
+      {/* FHIR R4 Bundle Export Preview Modal */}
       {fhirModalOpen && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0, 0, 0, 0.8)",
-          zIndex: 1100,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "24px"
-        }}>
-          <div className="glass-panel-elevated" style={{ width: "100%", maxWidth: "750px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <h3 style={{ fontSize: "1.1rem", color: "#ffffff", display: "flex", alignItems: "center", gap: "8px" }}>
-                <FileCode2 size={18} color="#38bdf8" />
-                <span>Interoperable FHIR R4 Clinical Bundle</span>
-              </h3>
-              <button onClick={() => setFhirModalOpen(false)} style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
-                <X size={18} />
-              </button>
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-card" style={{ maxWidth: "720px" }}>
+            <div className="modal-header">
+              <div className="technical-label">
+                <FileCode2 size={14} color="var(--navy-deep)" />
+                <span>HL7 FHIR R4 CLINICAL BUNDLE · {caseId}</span>
+              </div>
+              <button className="btn-close" onClick={() => setFhirModalOpen(false)}>✕</button>
             </div>
-            <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+
+            <div style={{ padding: "18px 24px" }}>
               {fhirLoading ? (
-                <div style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
-                  Generating FHIR R4 bundle from deterministic evaluation...
-                </div>
+                <div style={{ textAlign: "center", padding: "32px", color: "var(--text-muted)" }}>Generating validated FHIR R4 bundle...</div>
               ) : (
-                <pre className="mono" style={{ background: "#050811", padding: "14px", borderRadius: "8px", fontSize: "0.75rem", color: "#38bdf8", overflowX: "auto" }}>
+                <pre style={{
+                  background: "var(--panel-pale)",
+                  border: "1px solid var(--rule-muted)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "14px",
+                  fontSize: "0.75rem",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--navy-deep)",
+                  maxHeight: "380px",
+                  overflowY: "auto",
+                  margin: 0
+                }}>
                   {JSON.stringify(fhirData, null, 2)}
                 </pre>
               )}
-            </div>
-            <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button onClick={handleCopyFhir} className="btn-primary" style={{ fontSize: "0.8rem", padding: "6px 14px" }}>
-                {copiedFhir ? <Check size={14} /> : <Download size={14} />}
-                <span>{copiedFhir ? "Copied to Clipboard" : "Copy JSON"}</span>
-              </button>
-              <button onClick={() => setFhirModalOpen(false)} className="btn-outline" style={{ fontSize: "0.8rem", padding: "6px 14px" }}>
-                Close
-              </button>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setFhirModalOpen(false)}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn-submit"
+                  onClick={handleCopyFhir}
+                >
+                  {copiedFhir ? <Check size={14} /> : <Download size={14} />}
+                  <span>{copiedFhir ? "Copied!" : "Copy FHIR JSON"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };

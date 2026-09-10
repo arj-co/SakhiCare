@@ -118,9 +118,14 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
     <div className="section-container">
       <div className="header-row">
         <div>
-          <h2 className="title-primary">108 Emergency Transport Coordination Board</h2>
+          <div className="technical-label" style={{ marginBottom: "4px" }}>
+            <span>02 / DISPATCH INFRASTRUCTURE · 108 AMBULANCE NETWORK</span>
+          </div>
+          <h2 className="title-primary">
+            108 Emergency Transport <span className="editorial-italic">Coordination Board</span>
+          </h2>
           <p className="subtitle">
-            Truthful state machine tracking. Requires verified call attempt evidence; never fabricates dispatch status.
+            Truthful state machine tracking. Requires verified call attempt evidence; never fabricates dispatch status or patient ETA.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>

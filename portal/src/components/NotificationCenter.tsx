@@ -111,9 +111,14 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
     <div className="section-container">
       <div className="header-row">
         <div>
-          <h2 className="title-primary">Multi-Channel Notification & Escalation Center</h2>
+          <div className="technical-label" style={{ marginBottom: "4px" }}>
+            <span>03 / AUDITABLE TELECOMMUNICATIONS · TRUTHFUL ESCALATION</span>
+          </div>
+          <h2 className="title-primary">
+            Multi-Channel Escalation & <span className="editorial-italic">Delivery Center</span>
+          </h2>
           <p className="subtitle">
-            Truthful provider delivery status tracking. Minimal privacy-safe SMS templates omitting patient names.
+            Truthful provider delivery status tracking. Minimal privacy-safe SMS templates strictly omitting patient names.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>

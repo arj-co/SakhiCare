@@ -24,101 +24,99 @@ export const WorkerRoster: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ padding: "0 24px 32px 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+    <div className="section-container">
+      <div className="header-row">
         <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#ffffff" }}>
-            Frontline ASHA Worker Roster
+          <div className="technical-label" style={{ marginBottom: "4px" }}>
+            <span>05 / FRONTLINE HUMAN INFRASTRUCTURE · COMMUNITY ASHA CORPS</span>
+          </div>
+          <h2 className="title-primary">
+            Frontline ASHA Worker <span className="editorial-italic">Roster</span>
           </h2>
-          <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-            Frontline community health workers conducting offline maternal danger-sign screening
+          <p className="subtitle">
+            Accredited Social Health Activists equipped with offline-first SQLCipher Android apps for rural danger-sign screening.
           </p>
         </div>
-        <button onClick={loadData} className="btn-outline" style={{ fontSize: "0.8rem", padding: "6px 12px" }}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        <button onClick={loadData} className="btn-outline" style={{ fontSize: "0.8rem", padding: "7px 16px" }}>
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
           <span>Refresh Workers</span>
         </button>
       </div>
 
       {loading ? (
-        <div style={{ padding: "48px", textAlign: "center", color: "var(--text-muted)" }}>
-          Loading worker roster...
+        <div className="loading-state">
+          Loading ASHA worker roster...
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
           {workers.map((w) => (
             <div
               key={w.id}
-              className="glass-panel"
               style={{
-                padding: "18px",
+                background: "var(--panel-white)",
+                border: "1px solid var(--rule-muted)",
+                borderRadius: "var(--radius-lg)",
+                padding: "20px 24px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px"
+                gap: "14px",
+                boxShadow: "var(--shadow-sm)"
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{
-                    width: "36px",
-                    height: "36px",
+                    width: "38px",
+                    height: "38px",
                     borderRadius: "50%",
-                    background: "rgba(244, 63, 94, 0.15)",
+                    background: "var(--panel-pale)",
+                    border: "1px solid var(--rule-muted)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center"
                   }}>
-                    <Users size={18} color="#f43f5e" />
+                    <Users size={18} color="var(--navy-deep)" />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#ffffff" }}>{w.name}</h3>
-                    <span className="mono" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{w.id}</span>
+                    <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--navy-deep)", margin: 0 }}>{w.name}</h3>
+                    <span className="mono-badge">{w.id}</span>
                   </div>
                 </div>
 
-                <span style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: "999px",
-                  background: "rgba(16, 185, 129, 0.15)",
-                  color: "#6ee7b7",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px"
-                }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981" }} />
+                <span className="badge badge-green">
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--seafoam-dark)" }} />
                   {w.status}
                 </span>
               </div>
 
-              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ fontSize: "0.825rem", color: "var(--text-body)", display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Phone size={14} color="var(--text-muted)" />
-                  <span>Mobile: <strong>+91 {w.phone}</strong></span>
+                  <span>Mobile: <strong className="mono">+91 {w.phone}</strong></span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <MapPin size={14} color="var(--text-muted)" />
-                  <span>Assigned Facility: <strong>{w.facility_id}</strong></span>
+                  <span>Assigned Facility: <strong className="mono">{w.facility_id}</strong></span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Radio size={14} color="var(--text-muted)" />
-                  <span>Locale: <strong>{w.locale} (Hindi / Indic)</strong></span>
+                  <span>Locale: <strong>{w.locale} (Hindi / Indic Dialect)</strong></span>
                 </div>
               </div>
 
               <div style={{
-                background: "rgba(255, 255, 255, 0.02)",
-                padding: "6px 10px",
-                borderRadius: "6px",
-                fontSize: "0.7rem",
+                background: "var(--panel-pale)",
+                border: "1px solid var(--rule-soft)",
+                padding: "8px 12px",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "0.72rem",
                 color: "var(--text-muted)",
                 display: "flex",
-                justifyContent: "space-between"
+                justifyContent: "space-between",
+                alignItems: "center"
               }}>
-                <span>Android App Storage</span>
-                <span style={{ color: "#38bdf8" }}>SQLCipher Encrypted (Room v2)</span>
+                <span>Offline Storage:</span>
+                <span style={{ color: "var(--navy-deep)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>SQLCipher AES-256</span>
               </div>
             </div>
           ))}
