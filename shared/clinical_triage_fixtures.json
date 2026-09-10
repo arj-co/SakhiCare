@@ -1,0 +1,245 @@
+{
+  "protocol_version": "mohfw-hrp-v1.0",
+  "fixtures": [
+    {
+      "id": "scenario_01_severe_anemia",
+      "description": "Severe anemia (Hb < 7.0 g/dL) triggers RED emergency triage",
+      "input": {
+        "blood_pressure": "118/75",
+        "haemoglobin": 6.5,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Severe Anemia",
+        "requires_ambulance": true,
+        "requires_blood_alert": true
+      }
+    },
+    {
+      "id": "scenario_02_hypertensive_crisis_with_headache",
+      "description": "Hypertensive crisis (BP >= 160/110) with severe headache triggers RED emergency",
+      "input": {
+        "blood_pressure": "168/112",
+        "haemoglobin": null,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": true,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Severe Hypertensive Crisis",
+        "requires_ambulance": true,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_03_vaginal_bleeding_unmeasured_vitals",
+      "description": "Vaginal bleeding triggers RED emergency even when vitals are not measured",
+      "input": {
+        "blood_pressure": null,
+        "haemoglobin": null,
+        "danger_signs": {
+          "bleeding": true,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Vaginal Hemorrhage",
+        "requires_ambulance": true,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_04_convulsions_or_unconscious",
+      "description": "Convulsions or unconsciousness triggers immediate RED emergency",
+      "input": {
+        "blood_pressure": "130/85",
+        "haemoglobin": 10.5,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": true,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Convulsions",
+        "requires_ambulance": true,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_05_reduced_fetal_movement",
+      "description": "Acute fetal distress / reduced fetal movement triggers RED emergency",
+      "input": {
+        "blood_pressure": "122/78",
+        "haemoglobin": 11.0,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": true
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Fetal Distress",
+        "requires_ambulance": true,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_06_gestational_hypertension_only",
+      "description": "Gestational hypertension (140-159 / 90-109) with no other signs triggers AMBER",
+      "input": {
+        "blood_pressure": "146/94",
+        "haemoglobin": null,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "AMBER",
+        "primary_trigger": "Gestational Hypertension",
+        "requires_ambulance": false,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_07_moderate_anemia_only",
+      "description": "Moderate anemia (7.0 - 9.9 g/dL) triggers AMBER priority",
+      "input": {
+        "blood_pressure": "116/76",
+        "haemoglobin": 8.4,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "AMBER",
+        "primary_trigger": "Moderate Anemia",
+        "requires_ambulance": false,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_08_compound_risk_amber_htn_anemia_symptom",
+      "description": "Moderate anemia + Gestational HTN + Headache triggers compound RED emergency",
+      "input": {
+        "blood_pressure": "144/92",
+        "haemoglobin": 8.6,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": true,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "RED",
+        "primary_trigger": "Compound High Risk",
+        "requires_ambulance": true,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_09_completely_unmeasured_no_symptoms",
+      "description": "Unmeasured vitals with zero danger signs returns GREEN with unmeasured warnings",
+      "input": {
+        "blood_pressure": null,
+        "haemoglobin": null,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "GREEN",
+        "primary_trigger": "Normal",
+        "requires_ambulance": false,
+        "requires_blood_alert": false
+      }
+    },
+    {
+      "id": "scenario_10_normal_all_measured",
+      "description": "Normal vitals and zero danger signs returns GREEN",
+      "input": {
+        "blood_pressure": "118/76",
+        "haemoglobin": 11.5,
+        "danger_signs": {
+          "bleeding": false,
+          "convulsions_or_vision_loss": false,
+          "severe_headache": false,
+          "severe_abdominal_pain": false,
+          "severe_breathlessness": false,
+          "fever": false,
+          "premature_labour_water_broke": false,
+          "reduced_fetal_movement": false
+        }
+      },
+      "expected": {
+        "risk_level": "GREEN",
+        "primary_trigger": "Normal",
+        "requires_ambulance": false,
+        "requires_blood_alert": false
+      }
+    }
+  ]
+}

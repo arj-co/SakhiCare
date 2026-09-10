@@ -190,14 +190,16 @@ object FhirBundleConverter {
 }"""
     }
 
-    private fun parseBp(bp: String): Pair<Int, Int> {
+    private fun parseBp(bp: String?): Pair<Int, Int> {
+        if (bp == null) return Pair(120, 80)
         val parts = bp.split("/")
         val sys = parts.getOrNull(0)?.trim()?.toIntOrNull() ?: 120
         val dia = parts.getOrNull(1)?.trim()?.toIntOrNull() ?: 80
         return Pair(sys, dia)
     }
 
-    private fun parseHb(hb: String): Double {
+    private fun parseHb(hb: String?): Double {
+        if (hb == null) return 11.0
         val cleaned = hb.replace(Regex("[^0-9.]"), "")
         return cleaned.toDoubleOrNull() ?: 11.0
     }

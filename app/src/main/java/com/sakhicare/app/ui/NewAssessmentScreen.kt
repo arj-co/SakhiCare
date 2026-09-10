@@ -1,46 +1,31 @@
 package com.sakhicare.app.ui
 
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.sakhicare.app.data.DangerSigns
 import com.sakhicare.app.data.PatientCase
 import com.sakhicare.app.data.RiskLevel
@@ -48,485 +33,786 @@ import com.sakhicare.app.data.TriageEngine
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.ui.theme.*
-import com.sakhicare.app.voice.VoiceHelper
-import kotlinx.coroutines.delay
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewAssessmentScreen(
     currentLanguage: AppLanguage,
-    onAssessmentSubmitted: (PatientCase) -> Unit,
+    onAssessmentSubmitted: (PatientCase, java.io.File?, String?, Int?) -> Unit,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    var currentStep by remember { mutableIntStateOf(1) }
+
+    // Phase 2: Voice Note to Form state
+    var showVoiceDialog by remember { mutableStateOf(false) }
+    var attachedAudioFile by remember { mutableStateOf<java.io.File?>(null) }
+    var attachedVoiceTranscript by remember { mutableStateOf<String?>(null) }
+    var attachedAudioDurationSeconds by remember { mutableStateOf<Int?>(null) }
+    val currentCaseId = remember { "SC-${UUID.randomUUID().toString().take(8).uppercase()}" }
+
+    // Step 1: Identification & Gestational Details
     var patientName by remember { mutableStateOf("") }
     var village by remember { mutableStateOf("") }
-    var bloodPressure by remember { mutableStateOf("") }
-    var haemoglobin by remember { mutableStateOf("") }
+    var ageStr by remember { mutableStateOf("") }
+    var gestationalWeeksStr by remember { mutableStateOf("") }
+    var gravidaStr by remember { mutableStateOf("") }
+    var paraStr by remember { mutableStateOf("") }
 
+    // Step 2: 8 Danger Signs
     var bleeding by remember { mutableStateOf(false) }
+    var convulsions by remember { mutableStateOf(false) }
+    var severeHeadache by remember { mutableStateOf(false) }
+    var severeAbdominalPain by remember { mutableStateOf(false) }
+    var severeBreathlessness by remember { mutableStateOf(false) }
     var fever by remember { mutableStateOf(false) }
-    var headache by remember { mutableStateOf(false) }
+    var prematureLabourWaterBroke by remember { mutableStateOf(false) }
     var reducedFetalMovement by remember { mutableStateOf(false) }
 
-    var showSuccessOverlay by remember { mutableStateOf(false) }
-    var submittedRisk by remember { mutableStateOf<RiskLevel?>(null) }
-    var showVoiceModal by remember { mutableStateOf(false) }
-    var voiceTranscript by remember { mutableStateOf("") }
-    var isListening by remember { mutableStateOf(false) }
-    var sttStatusMessage by remember { mutableStateOf("Local Android Speech Recognition Ready") }
+    // Step 3: Vitals & Measurements
+    var bpNotMeasured by remember { mutableStateOf(false) }
+    var systolicBp by remember { mutableStateOf("") }
+    var diastolicBp by remember { mutableStateOf("") }
 
-    val scrollState = rememberScrollState()
-    val context = LocalContext.current
+    var hbNotMeasured by remember { mutableStateOf(false) }
+    var haemoglobinVal by remember { mutableStateOf("") }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "scale"
-    )
+    // Step 4: Travel & Transport Constraints
+    var distanceKm by remember { mutableStateOf("") }
+    var travelRoadBlocked by remember { mutableStateOf(false) }
+    var travelNightTime by remember { mutableStateOf(false) }
+    var travelNoVehicle by remember { mutableStateOf(false) }
 
-    fun applyParsedData(spoken: String) {
-        voiceTranscript = spoken
-        val parsed = VoiceHelper.parseSpokenText(spoken)
-        if (parsed.patientName.isNotBlank()) patientName = parsed.patientName
-        if (parsed.village.isNotBlank()) village = parsed.village
-        if (parsed.bloodPressure.isNotBlank()) bloodPressure = parsed.bloodPressure
-        if (parsed.haemoglobin.isNotBlank()) haemoglobin = parsed.haemoglobin
-        if (parsed.dangerSigns.bleeding) bleeding = true
-        if (parsed.dangerSigns.fever) fever = true
-        if (parsed.dangerSigns.headache) headache = true
-        if (parsed.dangerSigns.reducedFetalMovement) reducedFetalMovement = true
-        sttStatusMessage = "Speech processed: $spoken"
-        Toast.makeText(context, "Filled assessment from speech!", Toast.LENGTH_SHORT).show()
+    // Step 5: Save confirmation
+    var showSuccessModal by remember { mutableStateOf(false) }
+    var createdCaseId by remember { mutableStateOf("") }
+    var createdRisk by remember { mutableStateOf(RiskLevel.GREEN) }
+
+    val dangerSigns = remember(bleeding, convulsions, severeHeadache, severeAbdominalPain, severeBreathlessness, fever, prematureLabourWaterBroke, reducedFetalMovement) {
+        DangerSigns(
+            bleeding = bleeding,
+            convulsions = convulsions,
+            severeHeadache = severeHeadache,
+            severeAbdominalPain = severeAbdominalPain,
+            severeBreathlessness = severeBreathlessness,
+            fever = fever,
+            prematureLabourWaterBroke = prematureLabourWaterBroke,
+            reducedFetalMovement = reducedFetalMovement
+        )
     }
 
-    // ── Local Android Speech Recognizer Launcher ──
-    val speechLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        isListening = false
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!spoken.isNullOrBlank()) {
-                applyParsedData(spoken)
-                showVoiceModal = false
-            }
-        }
+    val bloodPressureString = remember(bpNotMeasured, systolicBp, diastolicBp) {
+        if (bpNotMeasured || (systolicBp.isBlank() && diastolicBp.isBlank())) null
+        else "${systolicBp.trim()}/${diastolicBp.trim()}"
     }
 
-    fun startLocalAndroidSpeech() {
-        val sttLocale = when (currentLanguage) {
-            AppLanguage.HINDI -> "hi-IN"
-            AppLanguage.MARATHI -> "mr-IN"
-            AppLanguage.KANNADA -> "kn-IN"
-            AppLanguage.BENGALI -> "bn-IN"
-            else -> "en-IN"
-        }
-
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, sttLocale)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, sttLocale)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "मरीज का नाम, गांव, बीपी और हीमोग्लोबिन बोलें...")
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-
-        try {
-            isListening = true
-            speechLauncher.launch(intent)
-        } catch (e: Exception) {
-            isListening = false
-            // Open modal fallback if intent is not supported directly
-            showVoiceModal = true
-        }
+    val haemoglobinString = remember(hbNotMeasured, haemoglobinVal) {
+        if (hbNotMeasured || haemoglobinVal.isBlank()) null
+        else "${haemoglobinVal.trim()} g/dL"
     }
 
-    // Auto-navigate after success
-    LaunchedEffect(showSuccessOverlay) {
-        if (showSuccessOverlay) {
-            delay(2500)
-            onNavigateBack()
-        }
+    val clinicalEvaluation = remember(dangerSigns, bloodPressureString, haemoglobinString) {
+        TriageEngine.evaluate(
+            bloodPressure = bloodPressureString,
+            haemoglobinStr = haemoglobinString,
+            dangerSigns = dangerSigns
+        )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundSoft)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundSoft)
-                .verticalScroll(scrollState)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .statusBarsPadding()
+                .navigationBarsPadding()
         ) {
-            // ── Header ──
-            Text(
-                text = Strings.get("new_assessment", currentLanguage),
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    color = Neutral900,
-                    fontWeight = FontWeight.Bold
-                )
-            )
-
-            // ── Voice STT Banner ──
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { startLocalAndroidSpeech() }
-            ) {
-                Box(
+            // Header Bar
+            Surface(color = SurfaceWhite, shadowElevation = 2.dp) {
+                Row(
                     modifier = Modifier
-                        .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))))
-                        .padding(18.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Surface(
-                            color = Color.White.copy(alpha = 0.25f),
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .scale(pulseScale)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
-                            }
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    Strings.get("voice_assistant", currentLanguage),
-                                    style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold)
-                                )
-                                Surface(
-                                    color = Color.White.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        "SPEECH-LLM",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                    )
-                                }
-                            }
-                            Text(
-                                "Dual Offline STT • Neural Audio-to-Reasoning",
-                                style = MaterialTheme.typography.labelMedium.copy(color = Color.White.copy(alpha = 0.9f))
-                            )
-                        }
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Neutral900)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Maternal Check (गर्भावस्था जांच)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                        )
+                        Text(
+                            text = "Step $currentStep of 5 • Progressive Encounter",
+                            style = MaterialTheme.typography.labelSmall.copy(color = Primary)
+                        )
                     }
                 }
             }
 
-            // ── Section 1: Patient Info ──
-            SectionCard(title = Strings.get("patient_details", currentLanguage)) {
-                ModernTextField(value = patientName, onValueChange = { patientName = it }, label = Strings.get("patient_name", currentLanguage), placeholder = Strings.get("patient_name_placeholder", currentLanguage))
-                Spacer(modifier = Modifier.height(12.dp))
-                ModernTextField(value = village, onValueChange = { village = it }, label = Strings.get("village", currentLanguage), placeholder = Strings.get("village_placeholder", currentLanguage))
-            }
+            // Step Body
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (currentStep) {
+                    1 -> {
+                        // ── STEP 1: Case Identification & Pregnancy History ──
+                        Text(
+                            text = "1. मरीज एवं गर्भावस्था जानकारी\nPatient & Pregnancy Details",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                        )
+                        Text(
+                            text = "Record minimal necessary demographics. No unnecessary personal data is collected.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral500)
+                        )
 
-            // ── Section 2: Vitals ──
-            SectionCard(title = Strings.get("vital_measurements", currentLanguage)) {
-                ModernTextField(value = bloodPressure, onValueChange = { bloodPressure = it }, label = Strings.get("bp", currentLanguage), placeholder = Strings.get("bp_placeholder", currentLanguage))
-                Spacer(modifier = Modifier.height(12.dp))
-                ModernTextField(value = haemoglobin, onValueChange = { haemoglobin = it }, label = Strings.get("haemoglobin", currentLanguage), placeholder = Strings.get("hb_placeholder", currentLanguage))
-            }
+                        // Voice Note to Form Intake Shortcut
+                        Button(
+                            onClick = { showVoiceDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = CoralPrimary),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Voice Note to Form (आवाज़ से भरें)", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
 
-            // ── Section 3: Danger Signs ──
-            SectionCard(title = Strings.get("danger_signs", currentLanguage)) {
-                ModernCheckRow(label = Strings.get("bleeding", currentLanguage), checked = bleeding, onCheckedChange = { bleeding = it })
-                ModernCheckRow(label = Strings.get("fever", currentLanguage), checked = fever, onCheckedChange = { fever = it })
-                ModernCheckRow(label = Strings.get("headache", currentLanguage), checked = headache, onCheckedChange = { headache = it })
-                ModernCheckRow(label = Strings.get("reduced_fetal_movement", currentLanguage), checked = reducedFetalMovement, onCheckedChange = { reducedFetalMovement = it })
-            }
+                        if (attachedAudioFile != null) {
+                            Surface(
+                                color = CoralSecondary.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "🎙️ Voice note attached (${attachedAudioDurationSeconds ?: 0}s)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = CoralPrimary
+                                    )
+                                    TextButton(onClick = { showVoiceDialog = true }) {
+                                        Text("Review", fontSize = 12.sp, color = CoralPrimary)
+                                    }
+                                }
+                            }
+                        }
 
-            // ── Submit Button ──
-            Button(
-                onClick = {
-                    if (patientName.isBlank() && bloodPressure.isBlank()) {
-                        Toast.makeText(context, "Please enter patient name or vitals", Toast.LENGTH_SHORT).show()
-                        return@Button
+                        OutlinedTextField(
+                            value = patientName,
+                            onValueChange = { patientName = it },
+                            label = { Text("Mother's Name or Local ID (नाम / पहचान)") },
+                            placeholder = { Text("e.g. Meera Devi") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = village,
+                            onValueChange = { village = it },
+                            label = { Text("Village / Hamlet (गांव / टोला)") },
+                            placeholder = { Text("e.g. Rampur Tola") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = ageStr,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) ageStr = it },
+                                label = { Text("Age (Years)") },
+                                placeholder = { Text("e.g. 24") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = gestationalWeeksStr,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) gestationalWeeksStr = it },
+                                label = { Text("Gestational (Weeks)") },
+                                placeholder = { Text("e.g. 32") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1.2f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = gravidaStr,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) gravidaStr = it },
+                                label = { Text("Gravida (Total Pregnancies)") },
+                                placeholder = { Text("G") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            OutlinedTextField(
+                                value = paraStr,
+                                onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) paraStr = it },
+                                label = { Text("Para (Deliveries)") },
+                                placeholder = { Text("P") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                if (patientName.isBlank()) {
+                                    Toast.makeText(context, "Please enter patient name or case identifier", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    currentStep = 2
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                        ) {
+                            Text("Next: Immediate Danger Signs", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                        }
                     }
 
-                    val ds = DangerSigns(bleeding, fever, headache, reducedFetalMovement)
-                    val bp = bloodPressure.ifBlank { "120/80" }
-                    val hb = if (haemoglobin.isBlank()) "11.0 g/dL" else if (haemoglobin.endsWith("g/dL")) haemoglobin else "$haemoglobin g/dL"
-                    val evaluation = com.sakhicare.app.data.TriageEngine.evaluate(bp, hb, ds)
-                    submittedRisk = evaluation.riskLevel
-
-                    onAssessmentSubmitted(
-                        PatientCase(
-                            id = "SC-${System.currentTimeMillis() % 100000}",
-                            patientName = patientName.ifBlank { "Unknown" },
-                            village = village.ifBlank { "Unknown" },
-                            bloodPressure = bp,
-                            haemoglobin = hb,
-                            dangerSigns = ds,
-                            riskLevel = evaluation.riskLevel,
-                            riskScore = evaluation.riskScore,
-                            clinicalRationale = evaluation.clinicalRationale,
-                            recommendedProtocol = evaluation.recommendedProtocol,
-                            assessmentTimestamp = System.currentTimeMillis(),
-                            syncStatus = "Pending"
+                    2 -> {
+                        // ── STEP 2: Immediate Danger Signs ──
+                        Text(
+                            text = "2. खतरे के गंभीर लक्षण\nImmediate Danger Signs",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = Neutral900)
                         )
-                    )
+                        Text(
+                            text = "Ask emergency questions directly. Any positive sign requires urgent escalation.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral500)
+                        )
 
-                    // Reset form & show success
-                    showSuccessOverlay = true
-                    patientName = ""; village = ""; bloodPressure = ""; haemoglobin = ""
-                    bleeding = false; fever = false; headache = false; reducedFetalMovement = false
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text(
-                    Strings.get("submit_assessment", currentLanguage),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
+                        DangerSignCheckboxCard("योनि से अत्यधिक रक्तस्राव (Heavy Vaginal Bleeding)", bleeding) { bleeding = it }
+                        DangerSignCheckboxCard("दौरे, बेहोशी या आंखों के आगे अंधेरा (Convulsions, Fits or Fainting)", convulsions) { convulsions = it }
+                        DangerSignCheckboxCard("अत्यधिक सिरदर्द या धुंधला दिखना (Severe Headache or Blurred Vision)", severeHeadache) { severeHeadache = it }
+                        DangerSignCheckboxCard("पेट में असहनीय दर्द (Severe Abdominal Pain)", severeAbdominalPain) { severeAbdominalPain = it }
+                        DangerSignCheckboxCard("सांस लेने में अत्यधिक कठिनाई या सीने में दर्द (Severe Breathlessness)", severeBreathlessness) { severeBreathlessness = it }
+                        DangerSignCheckboxCard("तेज बुखार एवं अत्यधिक कमजोरी (High Fever with Severe Illness)", fever) { fever = it }
+                        DangerSignCheckboxCard("समय से पहले पानी छूटना या प्रसव पीड़ा (Water Broke Early / Premature Labour)", prematureLabourWaterBroke) { prematureLabourWaterBroke = it }
+                        DangerSignCheckboxCard("शिशु की हलचल बंद या कम होना (Absent or Reduced Baby Movement)", reducedFetalMovement) { reducedFetalMovement = it }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(
+                                onClick = { currentStep = 1 },
+                                modifier = Modifier.weight(1f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = { currentStep = 3 },
+                                modifier = Modifier.weight(1.5f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                            ) {
+                                Text("Next: Measurements", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+
+                    3 -> {
+                        // ── STEP 3: Vitals & Measurements (NO SILENT DEFAULTS!) ──
+                        Text(
+                            text = "3. जांच एवं माप\nVitals & Measurements",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                        )
+                        Text(
+                            text = "Explicit 'Not measured' state is preserved. Missing values are NEVER defaulted to normal.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral500)
+                        )
+
+                        // Blood Pressure Card
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("रक्तचाप (Blood Pressure)", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = bpNotMeasured,
+                                            onCheckedChange = {
+                                                bpNotMeasured = it
+                                                if (it) {
+                                                    systolicBp = ""
+                                                    diastolicBp = ""
+                                                }
+                                            }
+                                        )
+                                        Text("Not measured", style = MaterialTheme.typography.bodySmall.copy(color = Neutral500))
+                                    }
+                                }
+
+                                if (!bpNotMeasured) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        OutlinedTextField(
+                                            value = systolicBp,
+                                            onValueChange = { if (it.length <= 3 && it.all { c -> c.isDigit() }) systolicBp = it },
+                                            label = { Text("Systolic (ऊपर)") },
+                                            placeholder = { Text("e.g. 140") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        OutlinedTextField(
+                                            value = diastolicBp,
+                                            onValueChange = { if (it.length <= 3 && it.all { c -> c.isDigit() }) diastolicBp = it },
+                                            label = { Text("Diastolic (नीचे)") },
+                                            placeholder = { Text("e.g. 90") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                    }
+                                    Text(
+                                        "Tip: Ensure mother rested for 5 minutes before reading. Repeat measurement if >= 140/90.",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Neutral500)
+                                    )
+                                } else {
+                                    Surface(color = Neutral100, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            "BP will be marked as 'Not measured' and accounted for in clinical decision support.",
+                                            modifier = Modifier.padding(10.dp),
+                                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral700)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Haemoglobin Card
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("हीमोग्लोबिन (Haemoglobin)", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = hbNotMeasured,
+                                            onCheckedChange = {
+                                                hbNotMeasured = it
+                                                if (it) haemoglobinVal = ""
+                                            }
+                                        )
+                                        Text("Not measured", style = MaterialTheme.typography.bodySmall.copy(color = Neutral500))
+                                    }
+                                }
+
+                                if (!hbNotMeasured) {
+                                    OutlinedTextField(
+                                        value = haemoglobinVal,
+                                        onValueChange = { haemoglobinVal = it },
+                                        label = { Text("Haemoglobin Level (g/dL)") },
+                                        placeholder = { Text("e.g. 8.5") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                } else {
+                                    Surface(color = Neutral100, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            "Hb strip unavailable: will be marked as 'Not measured'.",
+                                            modifier = Modifier.padding(10.dp),
+                                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral700)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(
+                                onClick = { currentStep = 2 },
+                                modifier = Modifier.weight(1f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = { currentStep = 4 },
+                                modifier = Modifier.weight(1.5f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                            ) {
+                                Text("Next: Travel Constraints", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+
+                    4 -> {
+                        // ── STEP 4: Travel & Transport Constraints ──
+                        Text(
+                            text = "4. दूरी एवं परिवहन बाधाएं\nTravel & Transport Constraints",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                        )
+                        Text(
+                            text = "Record practical access constraints to help the Medical Officer and Dispatcher.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Neutral500)
+                        )
+
+                        OutlinedTextField(
+                            value = distanceKm,
+                            onValueChange = { if (it.length <= 3 && it.all { c -> c.isDigit() }) distanceKm = it },
+                            label = { Text("Distance to PHC/CHC (km)") },
+                            placeholder = { Text("e.g. 18") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        DangerSignCheckboxCard("सड़क खराब / पानी भरा / पुल टूटा (Road Blocked / Flood / Rough Terrain)", travelRoadBlocked) { travelRoadBlocked = it }
+                        DangerSignCheckboxCard("रात्रि समय / अंधेरा (Night Time / Zero Street Lighting)", travelNightTime) { travelNightTime = it }
+                        DangerSignCheckboxCard("कोई निजी या सार्वजनिक वाहन उपलब्ध नहीं (No Vehicle / Auto Available)", travelNoVehicle) { travelNoVehicle = it }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(
+                                onClick = { currentStep = 3 },
+                                modifier = Modifier.weight(1f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = { currentStep = 5 },
+                                modifier = Modifier.weight(1.5f).height(52.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                            ) {
+                                Text("Review & Triage", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+
+                    5 -> {
+                        // ── STEP 5: Review & Confirmation ──
+                        Text(
+                            text = "5. समीक्षा एवं क्लिनिकल निर्णय\nReview & Clinical Triage",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                        )
+
+                        // Triage Result Banner
+                        val (riskColor, riskBg) = when (clinicalEvaluation.riskLevel) {
+                            RiskLevel.RED -> Pair(TriageRed, TriageRedBg)
+                            RiskLevel.AMBER -> Pair(TriageAmber, TriageAmberBg)
+                            RiskLevel.GREEN -> Pair(TriageGreen, TriageGreenBg)
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = riskBg),
+                            border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(riskColor))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${clinicalEvaluation.riskLevel.name} TRIAGE RESULT",
+                                        style = MaterialTheme.typography.titleMedium.copy(color = riskColor, fontWeight = FontWeight.ExtraBold)
+                                    )
+                                    Surface(shape = RoundedCornerShape(6.dp), color = Color.White) {
+                                        Text(
+                                            clinicalEvaluation.rulePackVersion,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall.copy(color = Neutral700)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    clinicalEvaluation.clinicalRationale,
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = Neutral900, fontWeight = FontWeight.SemiBold)
+                                )
+                            }
+                        }
+
+                        // What was found
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("What We Found (जांच में क्या मिला):", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                Text("• Patient: ${patientName.ifBlank { "Unknown" }} ($village)", style = MaterialTheme.typography.bodySmall)
+                                Text("• BP: ${bloodPressureString ?: "Not measured"}", style = MaterialTheme.typography.bodySmall)
+                                Text("• Hb: ${haemoglobinString ?: "Not measured"}", style = MaterialTheme.typography.bodySmall)
+                                if (clinicalEvaluation.primaryFactors.isNotEmpty()) {
+                                    Text("• Triggers: ${clinicalEvaluation.primaryFactors.joinToString("; ")}", style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (clinicalEvaluation.unmeasuredVitals.isNotEmpty()) {
+                                    Text("• Unmeasured: ${clinicalEvaluation.unmeasuredVitals.joinToString("; ")}", style = MaterialTheme.typography.bodySmall.copy(color = Neutral500))
+                                }
+                            }
+                        }
+
+                        // ASHA Safe First Response Actions
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("What To Do Now (ASHA-Safe Actions):", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = PrimaryDark))
+                                clinicalEvaluation.ashaSafeActions.forEach { action ->
+                                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                        Text(action, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Clinician Directed Procedures
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Neutral100)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Requires Medical Officer Direction:", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = Neutral700))
+                                clinicalEvaluation.clinicianDirectedActions.forEach { action ->
+                                    Text("• $action", style = MaterialTheme.typography.bodySmall.copy(color = Neutral700))
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(
+                                onClick = { currentStep = 4 },
+                                modifier = Modifier.weight(1f).height(54.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = {
+                                    val newCaseId = "SC-${UUID.randomUUID().toString().take(6).uppercase()}"
+                                    val newCase = PatientCase(
+                                        id = newCaseId,
+                                        localId = newCaseId,
+                                        patientName = patientName.trim().ifBlank { "Unknown" },
+                                        village = village.trim().ifBlank { "Unknown" },
+                                        ageYears = ageStr.toIntOrNull(),
+                                        gestationalAgeWeeks = gestationalWeeksStr.toIntOrNull(),
+                                        gravida = gravidaStr.toIntOrNull(),
+                                        para = paraStr.toIntOrNull(),
+                                        travelConstraints = listOfNotNull(
+                                            if (travelRoadBlocked) "Road blocked" else null,
+                                            if (travelNightTime) "Night" else null,
+                                            if (travelNoVehicle) "No vehicle" else null
+                                        ).joinToString(", ").ifBlank { null },
+                                        bloodPressure = bloodPressureString,
+                                        haemoglobin = haemoglobinString,
+                                        dangerSigns = dangerSigns,
+                                        riskLevel = clinicalEvaluation.riskLevel,
+                                        riskScore = clinicalEvaluation.riskScore,
+                                        clinicalRationale = clinicalEvaluation.clinicalRationale,
+                                        recommendedProtocol = clinicalEvaluation.recommendedProtocol,
+                                        unmeasuredVitals = clinicalEvaluation.unmeasuredVitals,
+                                        ashaSafeActions = clinicalEvaluation.ashaSafeActions,
+                                        clinicianDirectedActions = clinicalEvaluation.clinicianDirectedActions,
+                                        assessmentTimestamp = System.currentTimeMillis(),
+                                        syncStatus = "QUEUED",
+                                        isDemo = false,
+                                        rulePackVersion = "mohfw-hrp-v1.0"
+                                    )
+
+                                    onAssessmentSubmitted(
+                                        newCase,
+                                        attachedAudioFile,
+                                        attachedVoiceTranscript,
+                                        attachedAudioDurationSeconds
+                                    )
+                                    createdCaseId = newCaseId
+                                    createdRisk = clinicalEvaluation.riskLevel
+                                    showSuccessModal = true
+                                },
+                                modifier = Modifier.weight(1.8f).height(54.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Save Case Locally", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // ── Success Overlay ──
-        if (showSuccessOverlay) {
+        // Success Confirmation Modal
+        if (showSuccessModal) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.65f)),
+                    .background(Color.Black.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
             ) {
                 Card(
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth()
+                    modifier = Modifier.padding(24.dp).fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        val (successColor, successBg) = when (submittedRisk) {
-                            RiskLevel.RED -> Pair(TriageRed, TriageRedBg)
-                            RiskLevel.AMBER -> Pair(TriageAmber, TriageAmberBg)
-                            RiskLevel.GREEN -> Pair(TriageGreen, TriageGreenBg)
-                            null -> Pair(Primary, PrimaryLight)
-                        }
-                        Surface(color = successBg, shape = CircleShape, modifier = Modifier.size(68.dp)) {
+                        Surface(
+                            color = PrimaryLight,
+                            shape = CircleShape,
+                            modifier = Modifier.size(64.dp)
+                        ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = successColor, modifier = Modifier.size(38.dp))
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Primary, modifier = Modifier.size(36.dp))
                             }
                         }
+
                         Text(
-                            Strings.get("assessment_saved", currentLanguage),
-                            style = MaterialTheme.typography.titleLarge.copy(color = Neutral900, fontWeight = FontWeight.Bold)
+                            text = "सुरक्षित सहेजा गया\nSaved on This Phone",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         )
-                        Surface(color = successBg, shape = RoundedCornerShape(12.dp)) {
-                            Text(
-                                "Triage: ${submittedRisk?.name ?: ""} RISK",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.titleMedium.copy(color = successColor, fontWeight = FontWeight.Bold)
-                            )
+
+                        Text(
+                            text = "Case $createdCaseId stored in encrypted local database. Added to outbox queue for server sync.",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = Neutral500, textAlign = TextAlign.Center)
+                        )
+
+                        Button(
+                            onClick = {
+                                showSuccessModal = false
+                                onNavigateBack()
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                        ) {
+                            Text("Return to Dashboard", style = MaterialTheme.typography.titleSmall.copy(color = Color.White, fontWeight = FontWeight.Bold))
                         }
-                        Text(
-                            Strings.get("returning_dashboard", currentLanguage),
-                            style = MaterialTheme.typography.bodyMedium.copy(color = Neutral500)
-                        )
                     }
                 }
             }
         }
-    }
 
-    // ── Voice Dictation Modal ──
-    if (showVoiceModal) {
-        AlertDialog(
-            onDismissRequest = { showVoiceModal = false; isListening = false },
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = AccentIndigo)
-                    Text(
-                        Strings.get("speech_modal_title", currentLanguage),
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(
-                        color = AccentIndigoBg,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isListening) TriageRed else TriageGreen,
-                                modifier = Modifier.size(8.dp)
-                            ) {}
-                            Text(
-                                sttStatusMessage,
-                                style = MaterialTheme.typography.labelSmall.copy(color = AccentIndigo, fontWeight = FontWeight.Medium)
-                            )
+        // Voice Note to Form Dialog
+        if (showVoiceDialog) {
+            VoiceNoteToFormDialog(
+                caseId = currentCaseId,
+                onDismiss = { showVoiceDialog = false },
+                onConfirmFields = { fields, audioFile, transcript, duration ->
+                    attachedAudioFile = audioFile
+                    attachedVoiceTranscript = transcript.ifBlank { null }
+                    attachedAudioDurationSeconds = duration
+
+                    fields.patientName?.let { patientName = it }
+                    fields.village?.let { village = it }
+                    fields.gestationalAgeWeeks?.let { gestationalWeeksStr = it.toString() }
+
+                    fields.bloodPressure?.let { bp ->
+                        val parts = bp.split("/")
+                        if (parts.size == 2) {
+                            systolicBp = parts[0]
+                            diastolicBp = parts[1]
+                            bpNotMeasured = false
                         }
                     }
 
-                    Text(
-                        Strings.get("speech_modal_desc", currentLanguage),
-                        style = MaterialTheme.typography.bodySmall.copy(color = Neutral600)
-                    )
-
-                    // ── Local Android Speech Recognizer Trigger Button ──
-                    Button(
-                        onClick = { startLocalAndroidSpeech() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isListening) TriageRed else AccentIndigo
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Icon(
-                            if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            if (isListening) Strings.get("listening", currentLanguage) else "🎙️ Start Local Android Speech (बोलकर दर्ज करें)",
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    fields.haemoglobin?.let { hb ->
+                        haemoglobinVal = hb.toString()
+                        hbNotMeasured = false
                     }
 
-                    // ── Text input fallback ──
-                    OutlinedTextField(
-                        value = voiceTranscript,
-                        onValueChange = { voiceTranscript = it },
-                        label = { Text(Strings.get("transcript_label", currentLanguage)) },
-                        placeholder = { Text(Strings.get("transcript_placeholder", currentLanguage)) },
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(90.dp)
-                    )
+                    if (fields.dangerSigns.bleeding) bleeding = true
+                    if (fields.dangerSigns.convulsions) convulsions = true
+                    if (fields.dangerSigns.severeHeadache) severeHeadache = true
+                    if (fields.dangerSigns.severeAbdominalPain) severeAbdominalPain = true
+                    if (fields.dangerSigns.severeBreathlessness) severeBreathlessness = true
+                    if (fields.dangerSigns.fever) fever = true
+                    if (fields.dangerSigns.prematureLabourWaterBroke) prematureLabourWaterBroke = true
+                    if (fields.dangerSigns.reducedFetalMovement) reducedFetalMovement = true
 
-                    // ── Quick Presets ──
-                    Text(Strings.get("quick_presets", currentLanguage), style = MaterialTheme.typography.labelMedium.copy(color = Neutral700, fontWeight = FontWeight.Bold))
-                    VoiceHelper.sampleMultilingualDictations.take(3).forEach { sample ->
-                        Surface(
-                            color = Neutral50,
-                            shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Neutral200),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { voiceTranscript = sample }
-                        ) {
-                            Text(
-                                "\"$sample\"",
-                                modifier = Modifier.padding(10.dp),
-                                style = MaterialTheme.typography.bodySmall.copy(color = Neutral700),
-                                maxLines = 2
-                            )
-                        }
-                    }
+                    showVoiceDialog = false
+                    Toast.makeText(context, "Voice fields confirmed and applied to draft", Toast.LENGTH_SHORT).show()
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val p = VoiceHelper.parseSpokenText(voiceTranscript)
-                        if (p.patientName.isNotBlank()) patientName = p.patientName
-                        if (p.village.isNotBlank()) village = p.village
-                        if (p.bloodPressure.isNotBlank()) bloodPressure = p.bloodPressure
-                        if (p.haemoglobin.isNotBlank()) haemoglobin = p.haemoglobin
-                        bleeding = bleeding || p.dangerSigns.bleeding
-                        fever = fever || p.dangerSigns.fever
-                        headache = headache || p.dangerSigns.headache
-                        reducedFetalMovement = reducedFetalMovement || p.dangerSigns.reducedFetalMovement
-                        showVoiceModal = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentIndigo)
-                ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(Strings.get("parse_and_fill", currentLanguage), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showVoiceModal = false; isListening = false }) {
-                    Text(Strings.get("cancel", currentLanguage))
-                }
-            }
-        )
+            )
+        }
     }
 }
 
-// ── Reusable Components ──
-
 @Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+fun DangerSignCheckboxCard(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium.copy(color = Primary, fontWeight = FontWeight.Bold))
-            Spacer(modifier = Modifier.height(6.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun ModernTextField(value: String, onValueChange: (String) -> Unit, label: String, placeholder: String) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium.copy(color = Neutral400)) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-private fun ModernCheckRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Surface(
-        color = if (checked) PrimaryLight else Neutral50,
-        shape = RoundedCornerShape(14.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .clickable { onCheckedChange(!checked) },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (checked) TriageRedBg else SurfaceWhite
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(if (checked) TriageRed else Neutral300)
+        )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Checkbox(checked = checked, onCheckedChange = onCheckedChange, colors = CheckboxDefaults.colors(checkedColor = Primary))
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(label, style = MaterialTheme.typography.bodyMedium.copy(color = Neutral900, fontWeight = FontWeight.Medium))
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = CheckboxDefaults.colors(checkedColor = TriageRed)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
+                    color = if (checked) TriageRed else Neutral900
+                )
+            )
         }
     }
 }

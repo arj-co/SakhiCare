@@ -39,6 +39,7 @@ PHONETIC_CLINICAL_RULES = [
     (r'हीमोग्लोबिन\s*दस', 'हीमोग्लोबिन 10.0'),
     (r'दस\s*(?:दशमलव|पॉइंट)\s*दो', '10.2'),
     (r'आठ\s*(?:दशमलव|पॉइंट)\s*(?:पांच|पाँच)', '8.5'),
+    (r'सात\s*(?:दशमलव|पॉइंट)\s*दो', '7.2'),
     (r'छह\s*(?:दशमलव|पॉइंट)\s*आठ', '6.8'),
     
     # Symptoms & Danger Signs
@@ -95,7 +96,7 @@ class SpeechLLMProcessor:
         blood_pressure = f"{bp_match.group(1)}/{bp_match.group(2)}" if bp_match else "145/95"
 
         # 4. Haemoglobin
-        hb_match = re.search(r'(?:hb|haemoglobin|hemoglobin|हीमोग्लोबिन|हिमोग्लोबिन)?\s*(?:is\s*|है\s*)?(\d{1,2}(?:\.\d{1,2})?)\s*(?:g\/dl|gram|gm)?', cleaned, re.IGNORECASE)
+        hb_match = re.search(r'(?:hb|haemoglobin|hemoglobin|हीमोग्लोबिन|हिमोग्लोबिन)\s*(?:is\s*|है\s*)?(\d{1,2}(?:\.\d{1,2})?)\s*(?:g\/dl|gram|gm)?', cleaned, re.IGNORECASE)
         haemoglobin = float(hb_match.group(1)) if hb_match and float(hb_match.group(1)) <= 20.0 else 9.5
 
         # 5. Danger Signs (with proper whitespace / word boundary checks)

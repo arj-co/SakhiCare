@@ -75,3 +75,8 @@ val TextDark = Neutral900
 val TextSecondary = Neutral500
 val CardBorder = Neutral200
 val OfflineGrey = Neutral500
+
+val CoralPrimary = Primary
+val CoralSecondary = PrimaryLight
+val ForestGreen = GreenSuccessDark
+val SageGreenLight = GreenSuccessContainer

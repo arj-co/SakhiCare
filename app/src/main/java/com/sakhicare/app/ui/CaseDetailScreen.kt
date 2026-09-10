@@ -187,16 +187,16 @@ fun CaseDetailScreen(
                     VitalCard(
                         modifier = Modifier.weight(1f),
                         label = Strings.get("bp", currentLanguage),
-                        value = patientCase.bloodPressure,
-                        unit = "mmHg",
-                        isAbnormal = PatientCase.calculateRisk(patientCase.dangerSigns, patientCase.bloodPressure) == RiskLevel.RED
+                        value = patientCase.bloodPressure ?: "Not measured",
+                        unit = if (patientCase.bloodPressure != null) "mmHg" else "",
+                        isAbnormal = patientCase.riskLevel == RiskLevel.RED
                     )
                     VitalCard(
                         modifier = Modifier.weight(1f),
                         label = Strings.get("haemoglobin", currentLanguage),
-                        value = patientCase.haemoglobin,
+                        value = patientCase.haemoglobin ?: "Not measured",
                         unit = "",
-                        isAbnormal = false
+                        isAbnormal = patientCase.haemoglobin?.replace("g/dL", "")?.trim()?.toDoubleOrNull()?.let { it < 7.0 } ?: false
                     )
                 }
             }
@@ -213,11 +213,12 @@ fun CaseDetailScreen(
             DetailSection(title = Strings.get("case_info", currentLanguage)) {
                 MetaRow(label = "Case ID", value = patientCase.id)
                 MetaRow(label = Strings.get("assessment_date", currentLanguage), value = patientCase.formattedDate)
+                val isSynced = patientCase.syncStatus == "ACKNOWLEDGED"
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(
-                        if (patientCase.syncStatus == "Synced") Icons.Outlined.CloudDone else Icons.Outlined.CloudOff,
+                        if (isSynced) Icons.Outlined.CloudDone else Icons.Outlined.CloudOff,
                         contentDescription = null,
-                        tint = if (patientCase.syncStatus == "Synced") TriageGreen else TriageAmber,
+                        tint = if (isSynced) TriageGreen else TriageAmber,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(

@@ -240,8 +240,8 @@ private fun CaseCard(case: PatientCase, currentLanguage: AppLanguage, onClick: (
 
             // Row 2: Vitals + Sync
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                VitalChip(label = "BP", value = case.bloodPressure)
-                VitalChip(label = "Hb", value = case.haemoglobin)
+                VitalChip(label = "BP", value = case.bloodPressure ?: "--")
+                VitalChip(label = "Hb", value = case.haemoglobin ?: "--")
                 SyncChip(status = case.syncStatus)
             }
 

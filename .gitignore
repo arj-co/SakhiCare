@@ -2,6 +2,7 @@
 .gradle/
 build/
 app/build/
+dist-apk/
 *.apk
 *.aar
 *.keystore
@@ -14,9 +15,19 @@ __pycache__/
 venv/
 .venv/
 .env
+backend/venv/
+backend/.pytest_cache/
+backend/data/*.db
+backend/data/audio/*
+
+# Portal / Web
+portal/node_modules/
+portal/dist/
+.vite/
 
 # IDE & System
 .idea/
 *.iml
 .DS_Store
 .vscode/
+*.pptx

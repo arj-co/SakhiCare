@@ -111,7 +111,7 @@ object VoiceHelper {
             dangerSigns = DangerSigns(
                 bleeding = bleeding,
                 fever = fever,
-                headache = headache,
+                severeHeadache = headache,
                 reducedFetalMovement = reducedFetalMovement
             ),
             rawTranscript = transcript

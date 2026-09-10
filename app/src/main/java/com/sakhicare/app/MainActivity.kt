@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.*
@@ -20,11 +19,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.sakhicare.app.data.PatientRepository
+import com.sakhicare.app.data.preferences.OnboardingPreferences
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.sync.NetworkMonitor
@@ -32,6 +33,7 @@ import com.sakhicare.app.ui.CaseDetailScreen
 import com.sakhicare.app.ui.DashboardScreen
 import com.sakhicare.app.ui.MyCasesScreen
 import com.sakhicare.app.ui.NewAssessmentScreen
+import com.sakhicare.app.ui.OnboardingScreen
 import com.sakhicare.app.ui.theme.*
 
 sealed class Screen {
@@ -39,7 +41,6 @@ sealed class Screen {
     data object Dashboard : Screen()
     data object NewAssessment : Screen()
     data object MyCases : Screen()
-    data object SakhiAi : Screen()
     data class CaseDetail(val caseId: String) : Screen()
 }
 
@@ -50,6 +51,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Initialize offline Room repository
+        PatientRepository.initialize(this)
 
         networkMonitor = NetworkMonitor(this)
 
@@ -69,12 +73,21 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
-    var currentLanguage by remember { mutableStateOf(AppLanguage.HINDI) }
+    val context = LocalContext.current
+    val prefs = remember { OnboardingPreferences(context) }
+
+    val initialScreen = if (prefs.isOnboardingCompleted) Screen.Dashboard else Screen.Onboarding
+    var currentScreen by remember { mutableStateOf<Screen>(initialScreen) }
+
+    val initialLang = try {
+        AppLanguage.valueOf(prefs.selectedLanguage)
+    } catch (e: Exception) {
+        AppLanguage.HINDI
+    }
+    var currentLanguage by remember { mutableStateOf(initialLang) }
 
     val autoOnlineState by (networkMonitor?.isConnected?.collectAsState() ?: remember { mutableStateOf(false) })
-    var manualOnlineOverride by remember { mutableStateOf<Boolean?>(null) }
-    val isOnline = manualOnlineOverride ?: autoOnlineState
+    val isOnline = autoOnlineState
 
     // Start network callback
     LaunchedEffect(networkMonitor) {
@@ -84,7 +97,7 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
     Scaffold(
         containerColor = BackgroundSoft,
         bottomBar = {
-            val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment || currentScreen is Screen.SakhiAi || currentScreen is Screen.MyCases
+            val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment || currentScreen is Screen.MyCases
             if (showBottomNav) {
                 ModernBottomNav(
                     currentScreen = currentScreen,
@@ -100,10 +113,10 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                 .padding(paddingValues)
         ) {
             when (val screen = currentScreen) {
-                Screen.Onboarding -> com.sakhicare.app.ui.OnboardingScreen(
+                Screen.Onboarding -> OnboardingScreen(
                     currentLanguage = currentLanguage,
                     onLanguageSelected = { currentLanguage = it },
-                    onCompleteOnboarding = { _, _ ->
+                    onCompleteOnboarding = {
                         currentScreen = Screen.Dashboard
                     }
                 )
@@ -115,21 +128,22 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                     greenCount = PatientRepository.getGreenRiskCount(),
                     currentLanguage = currentLanguage,
                     onLanguageSelected = { currentLanguage = it },
-                    onToggleNetworkMode = { manualOnlineOverride = !isOnline },
-                    onSyncNowClick = { PatientRepository.syncAllPending() },
+                    onSyncNowClick = { PatientRepository.syncAllPending(context) },
                     onNewAssessmentClick = { currentScreen = Screen.NewAssessment },
-                    onMyCasesClick = { currentScreen = Screen.MyCases },
-                    onSakhiAiClick = { currentScreen = Screen.SakhiAi }
+                    onMyCasesClick = { currentScreen = Screen.MyCases }
                 )
                 Screen.NewAssessment -> NewAssessmentScreen(
                     currentLanguage = currentLanguage,
-                    onAssessmentSubmitted = { newCase ->
-                        PatientRepository.addCase(newCase)
+                    onAssessmentSubmitted = { newCase, audioFile, transcript, duration ->
+                        PatientRepository.addCase(
+                            patientCase = newCase,
+                            context = context,
+                            audioFile = audioFile,
+                            voiceTranscript = transcript,
+                            audioDurationSeconds = duration
+                        )
                     },
                     onNavigateBack = { currentScreen = Screen.Dashboard }
-                )
-                Screen.SakhiAi -> com.sakhicare.app.ui.SakhiAiCopilotScreen(
-                    currentLanguage = currentLanguage
                 )
                 Screen.MyCases -> MyCasesScreen(
                     cases = PatientRepository.cases,
@@ -168,7 +182,7 @@ private fun ModernBottomNav(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -183,12 +197,6 @@ private fun ModernBottomNav(
                 icon = Icons.Default.Add,
                 label = Strings.get("new_assessment", currentLanguage),
                 onClick = { onNavigate(Screen.NewAssessment) }
-            )
-            NavItem(
-                selected = currentScreen is Screen.SakhiAi,
-                icon = Icons.Default.AutoAwesome,
-                label = "SakhiAI",
-                onClick = { onNavigate(Screen.SakhiAi) }
             )
             NavItem(
                 selected = currentScreen is Screen.MyCases || currentScreen is Screen.CaseDetail,

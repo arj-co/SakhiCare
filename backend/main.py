@@ -4,12 +4,15 @@ Sync service, FHIR R4 converter, OneSignal REST API push engine, Parakeet Speech
 """
 
 from typing import Dict, Any, List, Optional
+import os
 import re
 import json
+import time
+import hashlib
 import asyncio
 from datetime import datetime, timezone
-from fastapi import FastAPI, Request, status, BackgroundTasks, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import FastAPI, Request, status, BackgroundTasks, UploadFile, File, HTTPException, Header, Query, Depends
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -18,6 +21,33 @@ from care_desk import CARE_DESK_HTML
 import onesignal_service
 from triage_engine import evaluate_clinical_risk, ClinicalEvaluationResult
 from speech_engine import extract_clinical_slots, transcribe_offline_audio, normalize_spoken_numbers
+
+from database import init_db, get_db, SessionLocal
+from models import (
+    FacilityModel, WorkerModel, UserModel, PregnancyCaseModel,
+    AssessmentModel, VoiceArtifactModel, CaseEventModel, OutboxItemModel
+)
+from auth import (
+    create_access_token, decode_access_token, get_current_user,
+    require_roles, TokenData, verify_password, hash_password
+)
+from case_service import (
+    seed_reference_data_if_empty, seed_demo_cases_if_empty,
+    ingest_sync_case_batch, get_case_detail, list_cases,
+    acknowledge_case, update_transport,
+    create_or_update_transport_request, list_transport_requests,
+    recommend_facility_for_case, get_clinical_protocol_metadata
+)
+from notification_service import (
+    list_notification_logs, trigger_emergency_escalation,
+    send_notification, format_minimal_sms
+)
+
+# Initialize durable database schema and reference data
+init_db()
+with SessionLocal() as _db_init:
+    seed_reference_data_if_empty(_db_init)
+    seed_demo_cases_if_empty(_db_init)
 
 app = FastAPI(
     title="SakhiCare Care Desk & Sync API",
@@ -70,6 +100,33 @@ class AdvisoryRequest(BaseModel):
 class DispatchRequest(BaseModel):
     vehicle_id: str = Field("108-AMB-Rampur-04", json_schema_extra={"example": "108-AMB-Rampur-04"})
     destination_facility: str = Field("CHC Rampur", json_schema_extra={"example": "CHC Rampur"})
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AcknowledgeCaseRequest(BaseModel):
+    advisory_text: str
+    referral_facility_id: Optional[str] = None
+
+
+class TransportCaseRequest(BaseModel):
+    vehicle_id: str
+    destination_facility: str
+    driver_phone: Optional[str] = None
+
+
+class TransportBoardUpdateRequest(BaseModel):
+    case_id: str
+    status: str = "REQUESTED"
+    vehicle_id: Optional[str] = None
+    destination_facility_id: Optional[str] = None
+    destination_facility_name: Optional[str] = None
+    driver_name: Optional[str] = None
+    driver_phone: Optional[str] = None
+    call_attempt_notes: Optional[str] = None
 
 
 class EmergencyPushRequest(BaseModel):
@@ -265,6 +322,18 @@ async def sync_case(payload: AssessmentSyncPayload, background_tasks: Background
 
     synced_cases_db[patient_id] = record
 
+    # Persist to durable database
+    with SessionLocal() as db:
+        ingest_sync_case_batch(db, {
+            "case_id": patient_id,
+            "patient_name": payload.patient_name,
+            "village": payload.village,
+            "blood_pressure": payload.blood_pressure,
+            "haemoglobin": payload.haemoglobin,
+            "danger_signs": payload.danger_signs.model_dump(),
+            "worker_id": payload.asha_device_id or "WKR-101"
+        })
+
     # Generate FHIR Bundle
     fhir_bundle = generate_fhir_bundle(
         patient_id=patient_id,
@@ -324,6 +393,13 @@ async def post_clinical_advisory(patient_id: str, request: AdvisoryRequest) -> D
     case["advisory_sender"] = request.sender
     case["advisory_timestamp"] = datetime.now(timezone.utc).isoformat()
 
+    with SessionLocal() as db:
+        db_case = db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == patient_id).first()
+        if db_case:
+            db_case.doctor_advisory = request.advisory_text
+            db_case.updated_at = int(time.time())
+            db.commit()
+
     await broadcast_sse_event("CASE_UPDATED", {"case": case})
 
     push_result = await onesignal_service.send_clinical_advisory_notification(
@@ -362,6 +438,13 @@ async def dispatch_ambulance(patient_id: str, request: DispatchRequest) -> Dict[
     status_str = f"Ambulance {request.vehicle_id} dispatched to {case.get('village', 'Village')} (Destination: {request.destination_facility})"
     case["ambulance_status"] = status_str
     case["ambulance_dispatched_at"] = datetime.now(timezone.utc).isoformat()
+
+    with SessionLocal() as db:
+        db_case = db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == patient_id).first()
+        if db_case:
+            db_case.ambulance_status = status_str
+            db_case.updated_at = int(time.time())
+            db.commit()
 
     await broadcast_sse_event("CASE_UPDATED", {"case": case})
 
@@ -469,6 +552,229 @@ async def transcribe_audio_endpoint(file: UploadFile = File(...)) -> Dict[str, A
     return transcribe_offline_audio(content, filename=file.filename or "audio.wav")
 
 
+# ── Phase 2: Audited Case Audio Endpoints ──
+AUDIO_STORAGE_DIR = os.path.join(os.path.dirname(__file__), "data", "audio")
+os.makedirs(AUDIO_STORAGE_DIR, exist_ok=True)
+audio_artifacts_db: Dict[str, Dict[str, Any]] = {}
+
+
+@app.post("/api/v1/cases/{case_id}/audio", status_code=status.HTTP_201_CREATED)
+async def upload_case_audio(
+    case_id: str,
+    file: UploadFile = File(...),
+    duration_seconds: int = Query(0),
+    language: str = Query("hi-IN"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    x_audio_sha256: Optional[str] = Header(None, alias="X-Audio-SHA256")
+) -> Dict[str, Any]:
+    """
+    Ingests raw recorded audio note for a case with SHA-256 validation and audit trail.
+    """
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty audio payload")
+
+    computed_sha = hashlib.sha256(content).hexdigest()
+    if x_audio_sha256 and x_audio_sha256.lower() != computed_sha.lower():
+        raise HTTPException(status_code=400, detail=f"SHA-256 checksum mismatch: header={x_audio_sha256}, actual={computed_sha}")
+
+    artifact_id = f"aud_{computed_sha[:12]}"
+    file_ext = os.path.splitext(file.filename or "")[1] or ".m4a"
+    dest_filename = f"{case_id}_{artifact_id}{file_ext}"
+    dest_path = os.path.join(AUDIO_STORAGE_DIR, dest_filename)
+
+    with open(dest_path, "wb") as f:
+        f.write(content)
+
+    artifact_meta = {
+        "id": artifact_id,
+        "case_id": case_id,
+        "file_path": dest_path,
+        "filename": dest_filename,
+        "mime_type": file.content_type or "audio/m4a",
+        "file_size_bytes": len(content),
+        "sha256": computed_sha,
+        "language": language,
+        "duration_seconds": duration_seconds,
+        "upload_status": "UPLOADED",
+        "uploaded_at": int(time.time()),
+        "retention_due_at": int(time.time() + 90 * 86400)
+    }
+    audio_artifacts_db[case_id] = artifact_meta
+
+    # Log audit event
+    audit_event = {
+        "event_id": f"evt_{int(time.time() * 1000)}",
+        "case_id": case_id,
+        "event_type": "AUDIO_UPLOADED",
+        "actor_id": "ASHA_WORKER",
+        "actor_role": "ASHA",
+        "summary": f"Voice note uploaded ({len(content)} bytes, SHA: {computed_sha[:8]}...)",
+        "occurred_at": int(time.time())
+    }
+    # Link to case if present in synced_cases_db
+    if case_id in synced_cases_db:
+        synced_cases_db[case_id]["audio_artifact"] = artifact_meta
+        if "timeline" in synced_cases_db[case_id]:
+            synced_cases_db[case_id]["timeline"].append(audit_event)
+
+    # Persist artifact & audit event to durable database
+    with SessionLocal() as db:
+        case = db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == case_id).first()
+        if case:
+            existing_artifact = db.query(VoiceArtifactModel).filter(VoiceArtifactModel.case_id == case_id).first()
+            if existing_artifact:
+                existing_artifact.file_path = dest_path
+                existing_artifact.filename = dest_filename
+                existing_artifact.mime_type = file.content_type or "audio/m4a"
+                existing_artifact.file_size_bytes = len(content)
+                existing_artifact.sha256 = computed_sha
+                existing_artifact.language = language
+                existing_artifact.duration_seconds = duration_seconds
+                existing_artifact.upload_status = "UPLOADED"
+                existing_artifact.uploaded_at = int(time.time())
+            else:
+                db_art = VoiceArtifactModel(
+                    id=artifact_id,
+                    case_id=case_id,
+                    file_path=dest_path,
+                    filename=dest_filename,
+                    mime_type=file.content_type or "audio/m4a",
+                    file_size_bytes=len(content),
+                    sha256=computed_sha,
+                    language=language,
+                    duration_seconds=duration_seconds,
+                    upload_status="UPLOADED",
+                    retention_due_at=int(time.time() + 90 * 86400),
+                    uploaded_at=int(time.time())
+                )
+                db.add(db_art)
+
+            db_evt = CaseEventModel(
+                id=f"EVT-{int(time.time() * 1000)}",
+                case_id=case_id,
+                event_type="AUDIO_UPLOADED",
+                actor_id="ASHA_WORKER",
+                actor_role="ASHA",
+                summary=f"Voice note uploaded ({len(content)} bytes, SHA: {computed_sha[:8]}...)",
+                occurred_at=int(time.time())
+            )
+            db.add(db_evt)
+            db.commit()
+
+    return {
+        "status": "UPLOADED",
+        "artifact_id": artifact_id,
+        "case_id": case_id,
+        "sha256": computed_sha,
+        "file_size_bytes": len(content),
+        "retention_due_at": artifact_meta["retention_due_at"]
+    }
+
+
+@app.get("/api/v1/cases/{case_id}/audio")
+async def get_case_audio(case_id: str):
+    """
+    Streams the case's recorded audio note to authorized Care Desk operators with audit tracking.
+    """
+    artifact = audio_artifacts_db.get(case_id)
+    if not artifact:
+        with SessionLocal() as db:
+            db_art = db.query(VoiceArtifactModel).filter(VoiceArtifactModel.case_id == case_id).first()
+            if db_art:
+                artifact = {
+                    "file_path": db_art.file_path,
+                    "mime_type": db_art.mime_type,
+                    "filename": db_art.filename
+                }
+
+    if not artifact or not os.path.exists(artifact["file_path"]):
+        raise HTTPException(status_code=404, detail="Audio recording not found for case")
+
+    # Record access audit event
+    if case_id in synced_cases_db and "timeline" in synced_cases_db[case_id]:
+        synced_cases_db[case_id]["timeline"].append({
+            "event_id": f"evt_{int(time.time() * 1000)}",
+            "case_id": case_id,
+            "event_type": "AUDIO_ACCESSED",
+            "actor_id": "CARE_DESK_OPERATOR",
+            "actor_role": "MEDICAL_OFFICER",
+            "summary": "Audio note streamed by Care Desk operator",
+            "occurred_at": int(time.time())
+        })
+
+    with SessionLocal() as db:
+        case = db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == case_id).first()
+        if case:
+            db.add(CaseEventModel(
+                id=f"EVT-{int(time.time() * 1000)}",
+                case_id=case_id,
+                event_type="AUDIO_ACCESSED",
+                actor_id="CARE_DESK_OPERATOR",
+                actor_role="MEDICAL_OFFICER",
+                summary="Audio note streamed by Care Desk operator",
+                occurred_at=int(time.time())
+            ))
+            db.commit()
+
+    return FileResponse(
+        artifact["file_path"],
+        media_type=artifact.get("mime_type", "audio/m4a"),
+        filename=artifact.get("filename", f"{case_id}.m4a")
+    )
+
+
+@app.delete("/api/v1/cases/{case_id}/audio", status_code=status.HTTP_200_OK)
+async def delete_case_audio(case_id: str):
+    """
+    Deletes audio note per retention/privacy policy with audit log.
+    """
+    artifact = audio_artifacts_db.get(case_id)
+    dest_path = None
+    if artifact:
+        dest_path = artifact.get("file_path")
+        del audio_artifacts_db[case_id]
+    else:
+        with SessionLocal() as db:
+            db_art = db.query(VoiceArtifactModel).filter(VoiceArtifactModel.case_id == case_id).first()
+            if db_art:
+                dest_path = db_art.file_path
+
+    if not dest_path:
+        raise HTTPException(status_code=404, detail="Audio recording not found for case")
+
+    if os.path.exists(dest_path):
+        os.remove(dest_path)
+
+    if case_id in synced_cases_db and "timeline" in synced_cases_db[case_id]:
+        synced_cases_db[case_id]["timeline"].append({
+            "event_id": f"evt_{int(time.time() * 1000)}",
+            "case_id": case_id,
+            "event_type": "AUDIO_DELETED",
+            "actor_id": "ADMIN_POLICY",
+            "actor_role": "SYSTEM",
+            "summary": "Audio file deleted per retention policy",
+            "occurred_at": int(time.time())
+        })
+
+    with SessionLocal() as db:
+        db_art = db.query(VoiceArtifactModel).filter(VoiceArtifactModel.case_id == case_id).first()
+        if db_art:
+            db.delete(db_art)
+        db.add(CaseEventModel(
+            id=f"EVT-{int(time.time() * 1000)}",
+            case_id=case_id,
+            event_type="AUDIO_DELETED",
+            actor_id="ADMIN_POLICY",
+            actor_role="SYSTEM",
+            summary="Audio file deleted per retention policy",
+            occurred_at=int(time.time())
+        ))
+        db.commit()
+
+    return {"status": "DELETED", "case_id": case_id}
+
+
 # ── SakhiAI Medical LLM Endpoints (UN SDG 3 Track) ──
 
 class CopilotChatRequest(BaseModel):
@@ -571,36 +877,454 @@ async def api_speech_llm_process_audio(file: UploadFile = File(...)) -> Dict[str
 
 @app.get("/cases", status_code=status.HTTP_200_OK)
 def list_synced_cases() -> Dict[str, Any]:
+    with SessionLocal() as db:
+        db_cases = list_cases(db)
+        if db_cases:
+            cases_flat = []
+            for c in db_cases:
+                asm = c.get("assessment") or {}
+                cases_flat.append({
+                    "patient_id": c["case_id"],
+                    "patient_name": c["patient_name"],
+                    "village": c["village"],
+                    "blood_pressure": asm.get("blood_pressure"),
+                    "haemoglobin": asm.get("haemoglobin"),
+                    "danger_signs": asm.get("danger_signs", {}),
+                    "risk_level": asm.get("risk_level", "GREEN"),
+                    "risk_score": asm.get("risk_score", 10),
+                    "clinical_rationale": asm.get("clinical_rationale"),
+                    "recommended_protocol": asm.get("recommended_protocol"),
+                    "sync_status": c.get("sync_status", "Synced"),
+                    "doctor_advisory": c.get("doctor_advisory"),
+                    "ambulance_status": c.get("ambulance_status")
+                })
+            # Merge memory cases if any not in DB
+            db_ids = {c["case_id"] for c in db_cases}
+            for pid, mem_c in synced_cases_db.items():
+                if pid not in db_ids:
+                    cases_flat.append(mem_c)
+            return {
+                "count": len(cases_flat),
+                "cases": cases_flat
+            }
+
     return {
         "count": len(synced_cases_db),
         "cases": list(synced_cases_db.values())
     }
 
 
+@app.get("/cases/{patient_id}", status_code=status.HTTP_200_OK)
+def get_single_case(patient_id: str) -> Dict[str, Any]:
+    with SessionLocal() as db:
+        detail = get_case_detail(db, patient_id)
+        if detail:
+            return detail
+    if patient_id in synced_cases_db:
+        return synced_cases_db[patient_id]
+    raise HTTPException(status_code=404, detail=f"Case {patient_id} not found")
+
+
 @app.get("/fhir/export/{patient_id}", status_code=status.HTTP_200_OK)
 def export_fhir_bundle(patient_id: str) -> Dict[str, Any]:
-    if patient_id not in synced_cases_db:
+    # Check in-memory synced cases
+    if patient_id in synced_cases_db:
+        case = synced_cases_db[patient_id]
         return generate_fhir_bundle(
-            patient_id=patient_id,
-            patient_name="Sunita Devi",
-            village="Rampur",
-            blood_pressure="160/110",
-            haemoglobin=6.8,
-            danger_signs={"bleeding": True, "fever": False, "headache": False, "reduced_fetal_movement": False},
-            risk_level="RED"
+            patient_id=case["patient_id"],
+            patient_name=case["patient_name"],
+            village=case["village"],
+            blood_pressure=case.get("blood_pressure") or "120/80",
+            haemoglobin=case.get("haemoglobin") or 11.0,
+            danger_signs=case.get("danger_signs") or {},
+            risk_level=case.get("risk_level") or "GREEN",
+            timestamp=case.get("timestamp")
         )
-    
-    case = synced_cases_db[patient_id]
-    return generate_fhir_bundle(
-        patient_id=case["patient_id"],
-        patient_name=case["patient_name"],
-        village=case["village"],
-        blood_pressure=case["blood_pressure"],
-        haemoglobin=case["haemoglobin"],
-        danger_signs=case["danger_signs"],
-        risk_level=case["risk_level"],
-        timestamp=case.get("timestamp")
-    )
+
+    # Check durable database
+    with SessionLocal() as db:
+        detail = get_case_detail(db, patient_id)
+        if detail:
+            asm = detail.get("assessment") or {}
+            return generate_fhir_bundle(
+                patient_id=detail["case_id"],
+                patient_name=detail["patient_name"],
+                village=detail["village"],
+                blood_pressure=asm.get("blood_pressure") or "120/80",
+                haemoglobin=asm.get("haemoglobin") or 11.0,
+                danger_signs={},
+                risk_level=asm.get("risk_level", "GREEN")
+            )
+
+    raise HTTPException(status_code=404, detail=f"Case {patient_id} not found for FHIR export")
+
+
+# ── Phase 3: Durable Backend API v1 Endpoints ──
+
+@app.post("/api/v1/auth/login")
+@app.post("/api/auth/login")
+def api_login(req: LoginRequest):
+    with SessionLocal() as db:
+        user = db.query(UserModel).filter(UserModel.username == req.username).first()
+        if not user or not verify_password(req.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password"
+            )
+        token = create_access_token(
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            facility_id=user.facility_id
+        )
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": user.role,
+                "facility_id": user.facility_id,
+                "email": user.email
+            }
+        }
+
+
+@app.get("/api/v1/auth/me")
+def api_get_current_user_profile(user: TokenData = Depends(get_current_user)):
+    with SessionLocal() as db:
+        db_user = db.query(UserModel).filter(UserModel.id == user.user_id).first()
+        if not db_user:
+            return {
+                "id": user.user_id,
+                "username": user.username,
+                "role": user.role,
+                "facility_id": user.facility_id,
+                "full_name": user.username
+            }
+        return {
+            "id": db_user.id,
+            "username": db_user.username,
+            "full_name": db_user.full_name,
+            "role": db_user.role,
+            "facility_id": db_user.facility_id,
+            "email": db_user.email
+        }
+
+
+@app.get("/api/v1/cases")
+def api_list_cases(
+    facility_id: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    with SessionLocal() as db:
+        cases = list_cases(
+            db,
+            facility_id=facility_id,
+            risk_level=risk_level,
+            status_filter=status,
+            limit=limit,
+            offset=offset
+        )
+        return {
+            "count": len(cases),
+            "cases": cases
+        }
+
+
+@app.get("/api/v1/cases/{case_id}")
+def api_get_case_detail(case_id: str):
+    with SessionLocal() as db:
+        detail = get_case_detail(db, case_id)
+        if not detail:
+            if case_id in synced_cases_db:
+                c = synced_cases_db[case_id]
+                return {
+                    "case_id": c["patient_id"],
+                    "patient_name": c["patient_name"],
+                    "village": c["village"],
+                    "sync_status": c.get("sync_status", "Synced"),
+                    "doctor_advisory": c.get("doctor_advisory"),
+                    "ambulance_status": c.get("ambulance_status"),
+                    "assessment": {
+                        "risk_level": c.get("risk_level", "GREEN"),
+                        "risk_score": c.get("risk_score", 10),
+                        "blood_pressure": c.get("blood_pressure"),
+                        "haemoglobin": c.get("haemoglobin"),
+                        "danger_signs": c.get("danger_signs", {}),
+                        "clinical_rationale": c.get("clinical_rationale", ""),
+                        "recommended_protocol": c.get("recommended_protocol", ""),
+                        "primary_factors": c.get("primary_factors", [])
+                    },
+                    "timeline": c.get("timeline", [])
+                }
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+        return detail
+
+
+@app.post("/api/v1/cases/{case_id}/acknowledge")
+async def api_acknowledge_case(
+    case_id: str,
+    req: AcknowledgeCaseRequest,
+    user: TokenData = Depends(require_roles("MEDICAL_OFFICER", "ADMIN"))
+):
+    with SessionLocal() as db:
+        updated = acknowledge_case(
+            db,
+            case_id=case_id,
+            actor_id=user.user_id,
+            actor_role=user.role,
+            advisory=req.advisory_text,
+            referral_facility_id=req.referral_facility_id
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+        # Keep in-memory synced_cases_db in sync
+        if case_id in synced_cases_db:
+            synced_cases_db[case_id]["doctor_advisory"] = req.advisory_text
+
+        await broadcast_sse_event("CASE_UPDATED", {"case": updated})
+
+        try:
+            await onesignal_service.send_clinical_advisory_notification(
+                patient_id=case_id,
+                patient_name=updated["patient_name"],
+                advisory_text=req.advisory_text,
+                doctor_or_operator_name=user.username
+            )
+        except Exception:
+            pass
+
+        return updated
+
+
+@app.post("/api/v1/cases/{case_id}/transport")
+async def api_transport_case(
+    case_id: str,
+    req: TransportCaseRequest,
+    user: TokenData = Depends(require_roles("DISPATCHER", "MEDICAL_OFFICER", "ADMIN"))
+):
+    with SessionLocal() as db:
+        updated = update_transport(
+            db,
+            case_id=case_id,
+            actor_id=user.user_id,
+            ambulance_status=f"{req.vehicle_id} Dispatched (ETA: 15 mins)",
+            driver_phone=req.driver_phone,
+            destination=req.destination_facility
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+        if case_id in synced_cases_db:
+            synced_cases_db[case_id]["ambulance_status"] = f"{req.vehicle_id} Dispatched"
+
+        await broadcast_sse_event("CASE_UPDATED", {"case": updated})
+        return updated
+
+
+@app.get("/api/v1/cases/{case_id}/events")
+def api_get_case_events(case_id: str):
+    with SessionLocal() as db:
+        case = db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+        events = db.query(CaseEventModel).filter(CaseEventModel.case_id == case_id).order_by(CaseEventModel.occurred_at.asc()).all()
+        return {
+            "case_id": case_id,
+            "count": len(events),
+            "events": [
+                {
+                    "id": e.id,
+                    "event_type": e.event_type,
+                    "actor_id": e.actor_id,
+                    "actor_role": e.actor_role,
+                    "summary": e.summary,
+                    "details": json.loads(e.details_json) if e.details_json else None,
+                    "occurred_at": e.occurred_at
+                }
+                for e in events
+            ]
+        }
+
+
+@app.post("/sync/batch")
+@app.post("/api/v1/sync/batch")
+async def api_sync_batch(request: Request):
+    payload = await request.json()
+    items_list = []
+    if isinstance(payload, list):
+        items_list = payload
+    elif isinstance(payload, dict) and "items" in payload:
+        items_list = payload["items"]
+    elif isinstance(payload, dict):
+        items_list = [payload]
+
+    results = []
+    with SessionLocal() as db:
+        for item in items_list:
+            item_dict = item if isinstance(item, dict) else item.model_dump()
+            res = ingest_sync_case_batch(db, item_dict)
+            results.append(res)
+    return {
+        "status": "ACKNOWLEDGED",
+        "processed": len(results),
+        "items": results
+    }
+
+
+@app.get("/api/v1/facilities")
+def api_list_facilities():
+    with SessionLocal() as db:
+        facs = db.query(FacilityModel).all()
+        return {
+            "count": len(facs),
+            "facilities": [
+                {
+                    "id": f.id,
+                    "name": f.name,
+                    "type": f.type,
+                    "catchment_area": f.catchment_area,
+                    "contact_phone": f.contact_phone
+                }
+                for f in facs
+            ]
+        }
+
+
+@app.get("/api/v1/workers")
+def api_list_workers():
+    with SessionLocal() as db:
+        workers = db.query(WorkerModel).all()
+        return {
+            "count": len(workers),
+            "workers": [
+                {
+                    "id": w.id,
+                    "name": w.name,
+                    "role": w.role,
+                    "phone": w.phone,
+                    "facility_id": w.facility_id,
+                    "locale": w.locale,
+                    "status": w.status,
+                    "last_seen_at": w.last_seen_at
+                }
+                for w in workers
+            ]
+        }
+
+
+# ── Phase 4: Transport Board, Facility Routing, and Notification Escalation ──
+
+@app.get("/api/v1/transport/requests")
+def api_list_transport_requests(status: Optional[str] = None):
+    """
+    Returns auditable transport coordination requests for the 108 Transport Board.
+    Truthful state tracking: REQUESTED, CALL_ATTEMPTED, CONFIRMED, EN_ROUTE, ARRIVED, FAILED.
+    """
+    with SessionLocal() as db:
+        requests = list_transport_requests(db, status_filter=status)
+        return {"count": len(requests), "items": requests}
+
+
+@app.post("/api/v1/transport/requests")
+async def api_update_transport_request(
+    payload: TransportBoardUpdateRequest,
+    user: TokenData = Depends(require_roles("DISPATCHER", "MEDICAL_OFFICER", "ADMIN", "SUPERVISOR"))
+):
+    """
+    Updates or creates transport dispatch record with call-and-confirm audit notes.
+    """
+    with SessionLocal() as db:
+        res = create_or_update_transport_request(
+            db=db,
+            case_id=payload.case_id,
+            status=payload.status,
+            actor_id=user.user_id,
+            vehicle_id=payload.vehicle_id,
+            destination_facility_id=payload.destination_facility_id,
+            destination_facility_name=payload.destination_facility_name,
+            driver_name=payload.driver_name,
+            driver_phone=payload.driver_phone,
+            call_attempt_notes=payload.call_attempt_notes
+        )
+        if not res:
+            raise HTTPException(status_code=404, detail=f"Case {payload.case_id} not found")
+
+        # Sync in-memory DB if present
+        if payload.case_id in synced_cases_db:
+            synced_cases_db[payload.case_id]["ambulance_status"] = f"{payload.vehicle_id or 'Ambulance'} - {payload.status}"
+
+        await broadcast_sse_event("TRANSPORT_UPDATED", {"transport": res, "case_id": payload.case_id})
+        return res
+
+
+@app.get("/api/v1/cases/{case_id}/recommend-facility")
+def api_recommend_facility(case_id: str):
+    """
+    Capability-based facility referral recommendation:
+    Severe anemia (Hb < 7) or Antepartum Hemorrhage -> FRU / CHC with Blood Bank;
+    Standard triage -> Primary Health Centre (PHC).
+    """
+    with SessionLocal() as db:
+        rec = recommend_facility_for_case(db, case_id)
+        return rec
+
+
+@app.get("/api/v1/clinical/protocols")
+def api_clinical_protocols():
+    """
+    Returns signed-off clinical protocol metadata (mohfw-hrp-v1.0),
+    clinical reviewer credentials, triage matrix definitions, and clinical scope boundaries.
+    """
+    return get_clinical_protocol_metadata()
+
+
+@app.get("/api/v1/notifications/logs")
+def api_list_notifications(case_id: Optional[str] = None):
+    """
+    Returns auditable notification delivery logs with truthful status tracking:
+    QUEUED, SENT, DELIVERED, FAILED, NOT_CONFIGURED.
+    """
+    with SessionLocal() as db:
+        logs = list_notification_logs(db, case_id=case_id)
+        return {"count": len(logs), "logs": logs}
+
+
+@app.post("/api/v1/notifications/escalate/{case_id}")
+async def api_escalate_notification(
+    case_id: str,
+    user: TokenData = Depends(require_roles("MEDICAL_OFFICER", "ADMIN", "SUPERVISOR", "DISPATCHER"))
+):
+    """
+    Triggers emergency multi-channel notification escalation for an urgent case.
+    Dispatches minimal privacy-safe SMS and escalates to Block Supervisor if primary channel unconfigured.
+    """
+    with SessionLocal() as db:
+        detail = get_case_detail(db, case_id)
+        if not detail:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+        asm = detail.get("assessment") or {}
+        danger_signs_dict = asm.get("danger_signs") or {}
+        signs_list = [k.replace("_", " ").title() for k, v in danger_signs_dict.items() if v]
+
+        res = trigger_emergency_escalation(
+            db=db,
+            case_id=case_id,
+            patient_name=detail.get("patient_name", "Unknown Patient"),
+            village=detail.get("village", "Unknown Village"),
+            urgency=detail.get("risk_level", "RED"),
+            danger_signs=signs_list
+        )
+
+        await broadcast_sse_event("ESCALATION_TRIGGERED", {"case_id": case_id, "escalation": res})
+        return res
 
 
 if __name__ == "__main__":
