@@ -62,6 +62,10 @@ export interface PregnancyCase {
   gravida?: number | null;
   para?: number | null;
   travel_constraints?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_accuracy_m?: number | null;
+  location_captured_at?: number | null;
   worker_id?: string | null;
   facility_id?: string | null;
   sync_status: string;

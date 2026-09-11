@@ -63,7 +63,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const risk = assessment?.risk_level || "GREEN";
   const dangerSigns = assessment?.danger_signs || {};
 
-  // Quick order advisory templates
+  // Quick clinical order templates
   const quickTemplates = [
     "Administer oral labetalol 100mg stat; maintain left lateral tilt; immediate 108 transfer to CHC.",
     "Administer paracetamol 500mg; perform rapid malaria & urine albumin test at Sub-centre.",
@@ -71,7 +71,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     "Immediate IM dexamethasone 6mg for fetal lung maturation; arrange obstetrician consultation."
   ];
 
-  // Refresh case detail on open
   useEffect(() => {
     async function loadLatest() {
       try {
@@ -84,7 +83,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     loadLatest();
   }, [caseId]);
 
-  // Handle Advisory Submission
   const handleSubmitAdvisory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!advisoryText.trim()) return;
@@ -104,7 +102,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     }
   };
 
-  // Handle Transport Coordination Submission
   const handleSubmitTransport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vehicleId.trim() || !destinationFacility.trim()) return;
@@ -123,7 +120,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     }
   };
 
-  // Fetch and show FHIR R4 Bundle
   const handleOpenFhir = async () => {
     setFhirModalOpen(true);
     setFhirLoading(true);
@@ -159,7 +155,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               {risk === "RED" ? <AlertOctagon size={13} /> : (risk === "AMBER" ? <AlertTriangle size={13} /> : <CheckCircle size={13} />)}
               {risk} RISK
             </span>
-            <h2 className="modal-title" style={{ margin: 0 }}>
+            <h2 className="modal-title" style={{ margin: 0, fontFamily: "var(--font-serif)", fontSize: "1.65rem" }}>
               {currentCase.patient_name}
             </h2>
             <span className="case-id-code">{caseId}</span>
@@ -172,9 +168,9 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             <button
               onClick={handleOpenFhir}
               className="btn btn-secondary btn-sm"
-              title="Export FHIR R4 Bundle"
+              title="Export FHIR R4 Clinical Bundle"
             >
-              <FileCode2 size={14} />
+              <FileCode2 size={14} color="var(--medical-teal)" />
               <span>FHIR R4</span>
             </button>
 
@@ -190,30 +186,30 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
           {/* Left Column: Clinical Assessment */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             
-            {/* Vitals Snapshot */}
-            <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+            {/* Vitals Snapshot Card */}
+            <div style={{ background: "var(--bg-card-warm)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
-                <Activity size={16} color="var(--primary-blue)" />
-                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>Clinical Vitals</h4>
+                <Activity size={16} color="var(--medical-teal)" />
+                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>Clinical Vitals</h4>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>Blood Pressure</div>
-                  <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginTop: "2px" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Blood Pressure</div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-mono)", marginTop: "2px" }}>
                     {assessment?.blood_pressure || "Unmeasured"}
                   </div>
                 </div>
 
-                <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "10px 14px" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>Haemoglobin</div>
-                  <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginTop: "2px" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Haemoglobin</div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-mono)", marginTop: "2px" }}>
                     {assessment?.haemoglobin ? `${assessment.haemoglobin} g/dL` : "Unmeasured"}
                   </div>
                 </div>
               </div>
 
-              {/* Danger Signs Checklist */}
+              {/* Observed Danger Signs */}
               <div>
                 <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>
                   Observed Danger Signs:
@@ -234,35 +230,35 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Clinical Triage Rationale */}
-            <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+            {/* Protocol & Rationale */}
+            <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                <ShieldCheck size={16} color="var(--primary-blue)" />
-                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>Clinical Protocol & Rationale</h4>
+                <ShieldCheck size={16} color="var(--medical-teal)" />
+                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>Protocol & Clinical Guidance</h4>
               </div>
 
-              <div style={{ fontSize: "0.875rem", color: "var(--text-body)", marginBottom: "14px", lineHeight: 1.5 }}>
+              <div style={{ fontSize: "0.875rem", color: "var(--text-body)", marginBottom: "14px", lineHeight: 1.6 }}>
                 {assessment?.clinical_rationale || "Clinical assessment evaluated under MoHFW guidelines."}
               </div>
 
-              {/* Actions Grid */}
+              {/* Action boundaries */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                <div style={{ background: "var(--green-bg)", border: "1px solid var(--green-border)", borderRadius: "var(--radius-sm)", padding: "10px" }}>
+                <div style={{ background: "var(--green-bg)", border: "1px solid var(--green-border)", borderRadius: "var(--radius-sm)", padding: "12px" }}>
                   <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--green-text)", marginBottom: "4px" }}>
-                    ✓ Frontline Safe Actions:
+                    ✓ ASHA Safe Actions:
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)" }}>
-                    {(assessment?.asha_safe_actions || ["Call 108 ambulance", "Position in left lateral tilt", "Accompany to facility"]).map((act, i) => (
+                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)", lineHeight: 1.6 }}>
+                    {(assessment?.asha_safe_actions || ["Dial 108 ambulance", "Position in left lateral tilt", "Accompany to facility"]).map((act, i) => (
                       <li key={i}>{act}</li>
                     ))}
                   </ul>
                 </div>
 
-                <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-sm)", padding: "10px" }}>
+                <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-sm)", padding: "12px" }}>
                   <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--red-text)", marginBottom: "4px" }}>
                     ⚠ Clinician Orders Only:
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)" }}>
+                  <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)", lineHeight: 1.6 }}>
                     {(assessment?.clinician_directed_actions || ["IV cannulation & fluids", "Magnesium Sulphate loading", "Antihypertensive administration"]).map((act, i) => (
                       <li key={i}>{act}</li>
                     ))}
@@ -271,16 +267,16 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Voice Note Recording Player */}
+            {/* Voice Note Audio Recording */}
             {currentCase.audio_artifact && (
-              <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                  <Mic size={16} color="var(--primary-blue)" />
-                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>Frontline Voice Note</h4>
+                  <Mic size={16} color="var(--medical-teal)" />
+                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>Frontline Voice Note</h4>
                 </div>
 
                 {currentCase.audio_artifact.transcript && (
-                  <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-sm)", padding: "10px", fontSize: "0.8125rem", color: "var(--text-body)", marginBottom: "10px", fontStyle: "italic" }}>
+                  <div style={{ background: "var(--bg-card-warm)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", padding: "12px", fontSize: "0.825rem", color: "var(--text-body)", marginBottom: "10px", fontStyle: "italic" }}>
                     "{currentCase.audio_artifact.transcript}"
                   </div>
                 )}
@@ -304,7 +300,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
           {/* Right Column: Doctor Orders, 108 Dispatch & Event History */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             
-            {/* Feedback Alerts */}
             {successMessage && (
               <div className="alert alert-success" style={{ margin: 0 }}>
                 {successMessage}
@@ -317,11 +312,11 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             )}
 
             {/* Doctor Clinical Guidance Console */}
-            <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Stethoscope size={16} color="var(--primary-blue)" />
-                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>Doctor Advisory Order</h4>
+                  <Stethoscope size={16} color="var(--medical-teal)" />
+                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>Doctor Advisory Order</h4>
                 </div>
                 {currentCase.doctor_advisory && (
                   <span className="badge badge-green">Advisory Active</span>
@@ -337,7 +332,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               {canDoctorAct ? (
                 <form onSubmit={handleSubmitAdvisory}>
                   <div className="form-group">
-                    <label className="form-label" style={{ fontSize: "0.75rem" }}>Quick Clinical Order Templates:</label>
+                    <label className="form-label" style={{ fontSize: "0.75rem" }}>Rapid Clinical Presets:</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       {quickTemplates.map((t, idx) => (
                         <button
@@ -346,8 +341,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                           onClick={() => setAdvisoryText(t)}
                           style={{
                             textAlign: "left",
-                            background: "var(--bg-muted)",
-                            border: "1px solid var(--border-color)",
+                            background: "var(--bg-card-warm)",
+                            border: "1px solid var(--border-subtle)",
                             borderRadius: "var(--radius-sm)",
                             padding: "6px 10px",
                             fontSize: "0.75rem",
@@ -396,21 +391,21 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </button>
                 </form>
               ) : (
-                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", background: "var(--bg-muted)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", background: "var(--bg-card-warm)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
                   Clinical guidance orders require Medical Officer credentials. Current role: <strong>{currentUser.role}</strong>.
                 </div>
               )}
             </div>
 
             {/* 108 Emergency Transport Console */}
-            <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Truck size={16} color="var(--primary-blue)" />
-                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>108 Transport Dispatch</h4>
+                  <Truck size={16} color="var(--medical-teal)" />
+                  <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>108 Transport Dispatch</h4>
                 </div>
                 {currentCase.ambulance_status && (
-                  <span className="badge badge-blue">Ambulance Dispatched</span>
+                  <span className="badge badge-teal">Dispatched</span>
                 )}
               </div>
 
@@ -460,17 +455,17 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   </button>
                 </form>
               ) : (
-                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", background: "var(--bg-muted)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", background: "var(--bg-card-warm)", padding: "10px", borderRadius: "var(--radius-sm)" }}>
                   Ambulance dispatch requires Dispatcher or Medical Officer role.
                 </div>
               )}
             </div>
 
             {/* Case Event Audit History */}
-            <div style={{ background: "#ffffff", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                <History size={16} color="var(--primary-blue)" />
-                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-main)" }}>Audit History</h4>
+                <History size={16} color="var(--medical-teal)" />
+                <h4 style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)" }}>Case Audit History</h4>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "160px", overflowY: "auto" }}>
@@ -478,8 +473,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>No events recorded yet.</span>
                 ) : (
                   (currentCase.timeline || []).map((evt, i) => (
-                    <div key={i} style={{ fontSize: "0.8125rem", borderLeft: "2px solid var(--border-color)", paddingLeft: "8px" }}>
-                      <div style={{ color: "var(--text-main)", fontWeight: 600 }}>{evt.summary}</div>
+                    <div key={i} style={{ fontSize: "0.8125rem", borderLeft: "2px solid var(--border-subtle)", paddingLeft: "8px" }}>
+                      <div style={{ color: "var(--text-primary)", fontWeight: 600 }}>{evt.summary}</div>
                       <div style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
                         {evt.actor_role} ({evt.actor_id}) &bull; {new Date(evt.occurred_at * 1000).toLocaleTimeString()}
                       </div>
@@ -507,9 +502,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
         <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="modal-dialog" style={{ maxWidth: "720px" }}>
             <div className="modal-header">
-              <h3 className="modal-title">
-                <FileCode2 size={18} color="var(--primary-blue)" />
-                <span>HL7 FHIR R4 Clinical Bundle ({caseId})</span>
+              <h3 className="modal-title" style={{ fontFamily: "var(--font-serif)" }}>
+                HL7 FHIR R4 Clinical Bundle ({caseId})
               </h3>
               <button className="btn-close" onClick={() => setFhirModalOpen(false)}>✕</button>
             </div>
@@ -518,8 +512,8 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                 <div className="empty-state">Generating FHIR R4 bundle...</div>
               ) : (
                 <pre style={{
-                  background: "var(--bg-muted)",
-                  border: "1px solid var(--border-color)",
+                  background: "var(--bg-card-warm)",
+                  border: "1px solid var(--border-subtle)",
                   borderRadius: "var(--radius-md)",
                   padding: "14px",
                   fontSize: "0.8rem",

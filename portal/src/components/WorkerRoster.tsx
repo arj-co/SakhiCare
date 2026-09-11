@@ -25,16 +25,17 @@ export const WorkerRoster: React.FC = () => {
 
   return (
     <div>
-      {/* Title */}
+      {/* Eyra Section Label & Page Title */}
       <div className="page-title-row">
         <div>
+          <div className="eyra-section-label">Community Health Corps</div>
           <h1 className="page-title">Frontline ASHA Worker Roster</h1>
           <p className="page-subtitle">
-            Accredited Social Health Activists (ASHAs) equipped with offline Android applications for rural field triage.
+            Accredited Social Health Activists (ASHAs) equipped with offline-first Android applications for village-level danger sign detection.
           </p>
         </div>
         <button onClick={loadData} className="btn btn-secondary btn-sm">
-          <RefreshCw size={14} />
+          <RefreshCw size={13} />
           <span>Refresh</span>
         </button>
       </div>
@@ -42,37 +43,37 @@ export const WorkerRoster: React.FC = () => {
       {loading ? (
         <div className="empty-state">Loading worker roster...</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "18px" }}>
           {workers.map((w) => (
             <div
               key={w.id}
               style={{
-                background: "#ffffff",
+                background: "#FFFFFF",
                 border: "1px solid var(--border-color)",
                 borderRadius: "var(--radius-lg)",
-                padding: "20px",
+                padding: "22px 24px",
                 display: "flex",
                 flexDirection: "column",
                 gap: "14px",
-                boxShadow: "var(--shadow-xs)"
+                boxShadow: "var(--shadow-subtle)"
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{
-                    width: "40px",
-                    height: "40px",
+                    width: "42px",
+                    height: "42px",
                     borderRadius: "50%",
-                    background: "var(--bg-muted)",
+                    background: "var(--teal-light)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "var(--primary-blue)"
+                    color: "var(--medical-teal)"
                   }}>
                     <Users size={20} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-main)", margin: 0 }}>
+                    <h3 style={{ fontSize: "1.15rem", fontFamily: "var(--font-serif)", color: "var(--text-primary)", margin: 0 }}>
                       {w.name}
                     </h3>
                     <span className="case-id-code">{w.id}</span>
@@ -87,23 +88,23 @@ export const WorkerRoster: React.FC = () => {
 
               <div style={{ fontSize: "0.85rem", color: "var(--text-body)", display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Phone size={14} color="var(--text-muted)" />
-                  <span>Phone: <strong>+91 {w.phone}</strong></span>
+                  <Phone size={14} color="var(--medical-teal)" />
+                  <span>Phone: <strong style={{ fontFamily: "var(--font-mono)" }}>+91 {w.phone}</strong></span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <MapPin size={14} color="var(--text-muted)" />
-                  <span>Facility Link: <strong>{w.facility_id}</strong></span>
+                  <MapPin size={14} color="var(--medical-teal)" />
+                  <span>Assigned Link Facility: <strong>{w.facility_id}</strong></span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Radio size={14} color="var(--text-muted)" />
+                  <Radio size={14} color="var(--medical-teal)" />
                   <span>Language / Dialect: <strong>{w.locale} (Hindi)</strong></span>
                 </div>
               </div>
 
               <div style={{
-                background: "var(--bg-muted)",
-                border: "1px solid var(--border-color)",
-                padding: "8px 12px",
+                background: "var(--bg-card-warm)",
+                border: "1px solid var(--border-subtle)",
+                padding: "8px 14px",
                 borderRadius: "var(--radius-sm)",
                 fontSize: "0.78rem",
                 color: "var(--text-muted)",
@@ -111,7 +112,7 @@ export const WorkerRoster: React.FC = () => {
                 justifyContent: "space-between",
                 alignItems: "center"
               }}>
-                <span>Encryption:</span>
+                <span>Offline Storage:</span>
                 <span className="case-id-code" style={{ fontSize: "0.72rem" }}>SQLCipher AES-256</span>
               </div>
             </div>

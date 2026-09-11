@@ -85,7 +85,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
       case "DELIVERED":
         return <span className="badge badge-green">DELIVERED</span>;
       case "SENT":
-        return <span className="badge badge-blue">SENT (IN FLIGHT)</span>;
+        return <span className="badge badge-teal">SENT (IN FLIGHT)</span>;
       case "NOT_CONFIGURED":
         return <span className="badge badge-amber" title="Provider API keys not configured">NOT CONFIGURED</span>;
       case "FAILED":
@@ -99,11 +99,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
   const getChannelBadge = (channel: string) => {
     switch (channel) {
       case "SMS":
-        return <span className="badge badge-blue"><Smartphone size={12} /> SMS</span>;
+        return <span className="badge badge-teal"><Smartphone size={12} /> SMS</span>;
       case "PUSH":
-        return <span className="badge badge-blue"><Bell size={12} /> PUSH</span>;
+        return <span className="badge badge-teal"><Bell size={12} /> PUSH</span>;
       case "VOICE_CALL":
-        return <span className="badge badge-blue"><Volume2 size={12} /> VOICE IVR</span>;
+        return <span className="badge badge-teal"><Volume2 size={12} /> VOICE IVR</span>;
       default:
         return <span className="badge badge-gray">{channel}</span>;
     }
@@ -118,19 +118,20 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
 
   return (
     <div>
-      {/* Title */}
+      {/* Eyra Section Label & Page Title */}
       <div className="page-title-row">
         <div>
+          <div className="eyra-section-label">Telecommunications & Alerts</div>
           <h1 className="page-title">Notification & Escalation Center</h1>
           <p className="page-subtitle">
-            Auditable delivery logs across SMS gateways, OneSignal push notifications, and IVR voice broadcasts.
+            Auditable delivery tracking across SMS gateways, OneSignal push notifications, and automated supervisor fallbacks.
           </p>
         </div>
 
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <select
             className="form-control"
-            style={{ width: "auto", fontSize: "0.8125rem", padding: "6px 12px" }}
+            style={{ width: "auto", fontSize: "0.8125rem", padding: "8px 14px", borderRadius: "var(--radius-pill)" }}
             value={channelFilter}
             onChange={(e) => setChannelFilter(e.target.value)}
           >
@@ -141,7 +142,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
           </select>
 
           <button className="btn btn-secondary btn-sm" onClick={loadLogs}>
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
             <span>Refresh</span>
           </button>
         </div>
@@ -152,12 +153,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
 
       {/* Manual Emergency Escalation Bar */}
       {canEscalate && urgentCases.length > 0 && (
-        <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-lg)", padding: "16px 20px", marginBottom: "20px" }}>
+        <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-lg)", padding: "18px 22px", marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <AlertTriangle size={18} color="var(--red-primary)" />
               <strong style={{ color: "var(--red-text)", fontSize: "0.9rem" }}>
-                Emergency Multi-Channel Escalation:
+                Emergency Escalation Dispatcher:
               </strong>
             </div>
 
@@ -186,16 +187,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
             </div>
           </div>
           <div style={{ fontSize: "0.75rem", color: "var(--red-text)", marginTop: "6px" }}>
-            Dispatches primary push alert + minimal SMS. Triggers automatic fallback alert to Block Supervisor if unacknowledged.
+            Dispatches primary push notification + minimal SMS. Automatically alerts Block Supervisor if unacknowledged within protocol window.
           </div>
         </div>
       )}
 
-      {/* MoHFW Privacy Assurance Notice */}
-      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "14px 18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px" }}>
-        <ShieldCheck size={20} color="var(--primary-blue)" />
-        <div style={{ fontSize: "0.8125rem", color: "var(--text-body)" }}>
-          <strong>MoHFW / DISHA Patient Data Privacy:</strong> Unencrypted SMS payloads strictly omit patient legal names. Only Case ID, risk level, village, and callback phone numbers are sent over telecommunication networks.
+      {/* MoHFW Patient Privacy Guarantee Banner */}
+      <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "16px 20px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px", boxShadow: "var(--shadow-subtle)" }}>
+        <ShieldCheck size={22} color="var(--medical-teal)" />
+        <div style={{ fontSize: "0.85rem", color: "var(--text-body)" }}>
+          <strong>MoHFW / DISHA Patient Data Privacy Guarantee:</strong> Plain SMS dispatches strictly exclude patient full legal names. Only Case ID, risk level, village, and clinical callback phone numbers are transmitted across public cellular networks.
         </div>
       </div>
 
@@ -205,9 +206,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
           <div className="empty-state">Loading notification dispatch logs...</div>
         ) : filteredLogs.length === 0 ? (
           <div className="empty-state">
-            <Bell size={36} className="empty-state-icon" />
-            <h3>No notification dispatches logged</h3>
-            <p>Outgoing push, SMS, and voice alerts will be logged here.</p>
+            <Bell size={36} className="empty-state-icon" color="var(--medical-teal)" />
+            <h3 style={{ fontFamily: "var(--font-serif)" }}>No notification dispatches logged</h3>
+            <p>Outgoing push alerts, SMS transmissions, and voice calls will appear here.</p>
           </div>
         ) : (
           <div className="table-responsive">

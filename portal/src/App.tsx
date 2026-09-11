@@ -9,11 +9,10 @@ import { WorkerRoster } from "./components/WorkerRoster";
 import { ClinicalProtocols } from "./components/ClinicalProtocols";
 import { TransportBoard } from "./components/TransportBoard";
 import { NotificationCenter } from "./components/NotificationCenter";
-import { AlertCircle, AlertTriangle, CheckCircle, FolderHeart } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle, Users } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Standard pre-configured demo users for role switching
 const DEFAULT_USERS: Record<UserProfile["role"], UserProfile> = {
   MEDICAL_OFFICER: {
     id: "usr_mo_01",
@@ -58,7 +57,6 @@ export const App: React.FC = () => {
   const [isLive, setIsLive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Authenticate user when role changes
   const handleRoleChange = async (role: UserProfile["role"]) => {
     const targetUser = DEFAULT_USERS[role];
     setCurrentUser(targetUser);
@@ -72,11 +70,10 @@ export const App: React.FC = () => {
       };
       await login(targetUser.username, passwords[targetUser.username] || "Password123!");
     } catch (err) {
-      console.warn("Backend auth notice, using cached session token", err);
+      console.warn("Backend auth offline or using cached session token", err);
     }
   };
 
-  // Initial load
   const loadCases = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
@@ -96,7 +93,7 @@ export const App: React.FC = () => {
     loadCases();
   }, [loadCases]);
 
-  // Connect to SSE live stream for real-time updates
+  // Connect to SSE stream
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
@@ -155,7 +152,6 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Summary counts
   const stats = useMemo(() => {
     const red = cases.filter((c) => c.assessment?.risk_level === "RED").length;
     const amber = cases.filter((c) => c.assessment?.risk_level === "AMBER").length;
@@ -163,7 +159,6 @@ export const App: React.FC = () => {
     return { red, amber, green, total: cases.length };
   }, [cases]);
 
-  // Callback when a case is updated inside modal
   const handleCaseUpdated = (updatedCase: PregnancyCase) => {
     const id = updatedCase.case_id || updatedCase.patient_id;
     setCases((prev) =>
@@ -174,7 +169,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Clean Navbar */}
+      {/* Eyra-inspired TopBar */}
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -186,14 +181,12 @@ export const App: React.FC = () => {
         onRefresh={loadCases}
       />
 
-      {/* Main Content Area */}
       <main className="main-content">
-        {/* Error Alert banner if backend unreachable */}
         {errorMessage && (
           <div className="alert alert-warning">
             <AlertCircle size={18} />
             <div style={{ flex: 1 }}>
-              <strong>Notice:</strong> {errorMessage} (Displaying locally cached records)
+              <strong>Notice:</strong> {errorMessage} (Displaying locally synchronized records)
             </div>
             <button className="btn btn-secondary btn-sm" onClick={loadCases}>
               Retry Connection
@@ -201,46 +194,49 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Stats Overview (shown on queue tab) */}
+        {/* Global Summary Stats (on queue tab) */}
         {currentTab === "queue" && (
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-info">
-                <span className="stat-label">Total Cases</span>
-                <span className="stat-value">{stats.total}</span>
+          <div>
+            <div className="eyra-section-label">Maternal Care Infrastructure</div>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-info">
+                  <span className="stat-label">Total Patients</span>
+                  <span className="stat-value">{stats.total}</span>
+                </div>
+                <div className="stat-icon-wrapper stat-icon-teal">
+                  <Users size={22} />
+                </div>
               </div>
-              <div className="stat-icon-wrapper stat-icon-blue">
-                <FolderHeart size={22} />
-              </div>
-            </div>
 
-            <div className="stat-card">
-              <div className="stat-info">
-                <span className="stat-label">Critical Emergency (RED)</span>
-                <span className="stat-value" style={{ color: "var(--red-primary)" }}>{stats.red}</span>
+              <div className="stat-card">
+                <div className="stat-info">
+                  <span className="stat-label">Critical Emergency</span>
+                  <span className="stat-value" style={{ color: "var(--red-primary)" }}>{stats.red}</span>
+                </div>
+                <div className="stat-icon-wrapper stat-icon-red">
+                  <AlertCircle size={22} />
+                </div>
               </div>
-              <div className="stat-icon-wrapper stat-icon-red">
-                <AlertCircle size={22} />
-              </div>
-            </div>
 
-            <div className="stat-card">
-              <div className="stat-info">
-                <span className="stat-label">Moderate Risk (AMBER)</span>
-                <span className="stat-value" style={{ color: "var(--amber-primary)" }}>{stats.amber}</span>
+              <div className="stat-card">
+                <div className="stat-info">
+                  <span className="stat-label">Moderate High-Risk</span>
+                  <span className="stat-value" style={{ color: "var(--amber-primary)" }}>{stats.amber}</span>
+                </div>
+                <div className="stat-icon-wrapper stat-icon-amber">
+                  <AlertTriangle size={22} />
+                </div>
               </div>
-              <div className="stat-icon-wrapper stat-icon-amber">
-                <AlertTriangle size={22} />
-              </div>
-            </div>
 
-            <div className="stat-card">
-              <div className="stat-info">
-                <span className="stat-label">Routine Care (GREEN)</span>
-                <span className="stat-value" style={{ color: "var(--green-primary)" }}>{stats.green}</span>
-              </div>
-              <div className="stat-icon-wrapper stat-icon-green">
-                <CheckCircle size={22} />
+              <div className="stat-card">
+                <div className="stat-info">
+                  <span className="stat-label">Routine ANC Care</span>
+                  <span className="stat-value" style={{ color: "var(--medical-teal)" }}>{stats.green}</span>
+                </div>
+                <div className="stat-icon-wrapper stat-icon-green">
+                  <CheckCircle size={22} />
+                </div>
               </div>
             </div>
           </div>
@@ -293,14 +289,19 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Clean Modern Footer */}
+      {/* Eyra-style App Footer & Status Bar */}
       <footer className="app-footer">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", maxWidth: "1320px", margin: "0 auto" }}>
-          <div>
-            <strong>SakhiCare</strong> Care Desk — Maternal Danger-Sign Screening & Response Platform (MoHFW v1.0)
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", maxWidth: "1280px", margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontFamily: "var(--font-serif)", fontSize: "1.1rem", fontWeight: 700 }}>SakhiCare</span>
+            <span>&bull;</span>
+            <span>Offline Maternal Danger-Sign Screening & 108 Emergency Transport</span>
           </div>
-          <div>
-            <span>Offline-First Android App</span> &bull; <span>108 Transport Hub</span> &bull; <span>FHIR R4 Compliant</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>Global Commitment:</span>
+            <span className="badge-sdg3">SDG 3: Good Health</span>
+            <span className="badge-sdg10">SDG 10: Reduced Inequalities</span>
           </div>
         </div>
       </footer>

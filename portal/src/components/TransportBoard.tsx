@@ -118,7 +118,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
         return <span className="badge badge-red">FAILED</span>;
       case "REQUESTED":
       default:
-        return <span className="badge badge-blue">REQUESTED</span>;
+        return <span className="badge badge-teal">REQUESTED</span>;
     }
   };
 
@@ -131,18 +131,19 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
 
   return (
     <div>
-      {/* Title & Actions */}
+      {/* Eyra Section Label & Page Title */}
       <div className="page-title-row">
         <div>
-          <h1 className="page-title">108 Emergency Transport Coordination Board</h1>
+          <div className="eyra-section-label">Emergency Logistics</div>
+          <h1 className="page-title">108 Transport Coordination Board</h1>
           <p className="page-subtitle">
-            Live coordination with 108 ambulance dispatch and district emergency response teams.
+            Direct coordination with district 108 emergency ambulance control rooms. Strict audit verification on vehicle assignment and arrival.
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <select
             className="form-control"
-            style={{ width: "auto", fontSize: "0.8125rem", padding: "6px 12px" }}
+            style={{ width: "auto", fontSize: "0.8125rem", padding: "8px 14px", borderRadius: "var(--radius-pill)" }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -156,7 +157,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
           </select>
 
           <button className="btn btn-secondary btn-sm" onClick={loadData}>
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
             <span>Refresh</span>
           </button>
         </div>
@@ -164,14 +165,14 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
 
       {error && <div className="alert alert-danger">⚠️ {error}</div>}
 
-      {/* KPI Cards */}
+      {/* KPI Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-info">
             <span className="stat-label">Active Transfers</span>
             <span className="stat-value">{activeCount}</span>
           </div>
-          <div className="stat-icon-wrapper stat-icon-blue">
+          <div className="stat-icon-wrapper stat-icon-teal">
             <Truck size={22} />
           </div>
         </div>
@@ -189,7 +190,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
         <div className="stat-card">
           <div className="stat-info">
             <span className="stat-label">En Route / Arrived</span>
-            <span className="stat-value" style={{ color: "var(--green-primary)" }}>{enRouteCount}</span>
+            <span className="stat-value" style={{ color: "var(--medical-teal)" }}>{enRouteCount}</span>
           </div>
           <div className="stat-icon-wrapper stat-icon-green">
             <CheckCircle2 size={22} />
@@ -207,14 +208,14 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
         </div>
       </div>
 
-      {/* Transport Table */}
+      {/* Transport Requests Table */}
       <div className="table-card">
         {loading ? (
           <div className="empty-state">Loading 108 ambulance coordination queue...</div>
         ) : requests.length === 0 ? (
           <div className="empty-state">
-            <Truck size={36} className="empty-state-icon" />
-            <h3>No active transport requests</h3>
+            <Truck size={36} className="empty-state-icon" color="var(--medical-teal)" />
+            <h3 style={{ fontFamily: "var(--font-serif)" }}>No active transport requests</h3>
             <p>When high-risk emergency cases trigger 108 ambulance dispatch, they appear here.</p>
           </div>
         ) : (
@@ -228,7 +229,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                   <th>Vehicle ID</th>
                   <th>Destination Hospital</th>
                   <th>Driver Contact</th>
-                  <th>Call Notes</th>
+                  <th>Call Evidence Notes</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -236,7 +237,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                 {requests.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <div style={{ fontWeight: 600, color: "var(--text-main)" }}>
+                      <div style={{ fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-serif)", fontSize: "1.05rem" }}>
                         {r.patient_name || "Emergency Patient"}
                       </div>
                       <a
@@ -252,7 +253,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                     </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <MapPin size={13} color="var(--primary-blue)" />
+                        <MapPin size={14} color="var(--medical-teal)" />
                         <span>{r.village || "—"}</span>
                       </div>
                     </td>
@@ -313,9 +314,8 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
         <div className="modal-overlay">
           <div className="modal-dialog" style={{ maxWidth: "600px" }}>
             <div className="modal-header">
-              <h3 className="modal-title">
-                <Truck size={18} color="var(--primary-blue)" />
-                <span>108 Transport: Case {activeItem.case_id}</span>
+              <h3 className="modal-title" style={{ fontFamily: "var(--font-serif)" }}>
+                108 Transport: Case {activeItem.case_id}
               </h3>
               <button className="btn-close" onClick={() => setActiveItem(null)}>
                 <X size={18} />
@@ -411,7 +411,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                     className="form-control"
                     value={callNotes}
                     onChange={(e) => setCallNotes(e.target.value)}
-                    placeholder="Enter operator name, ticket number, estimated ETA..."
+                    placeholder="Record operator name, ticket reference, estimated transit time..."
                     required
                   />
                 </div>
@@ -430,7 +430,7 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                   className="btn btn-primary"
                   disabled={submitting}
                 >
-                  {submitting ? "Saving..." : "Save Coordination Update"}
+                  {submitting ? "Saving..." : "Save Coordination Audit"}
                 </button>
               </div>
             </form>

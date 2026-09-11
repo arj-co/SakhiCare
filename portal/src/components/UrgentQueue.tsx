@@ -12,7 +12,7 @@ import {
   ChevronRight, 
   Stethoscope,
   Activity,
-  User
+  HeartHandshake
 } from "lucide-react";
 
 interface UrgentQueueProps {
@@ -31,7 +31,6 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
   const [riskFilter, setRiskFilter] = useState<"ALL" | "RED" | "AMBER" | "GREEN">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
-  // Format relative elapsed time
   const formatTimeElapsed = (timestamp?: number) => {
     if (!timestamp) return "Recent";
     const now = Math.floor(Date.now() / 1000);
@@ -42,7 +41,6 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
     return `${Math.floor(diff / 86400)}d ago`;
   };
 
-  // Filtered cases
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
       const risk = c.assessment?.risk_level || "GREEN";
@@ -67,19 +65,20 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
 
   return (
     <div>
-      {/* Header and Toolbar */}
+      {/* Eyra Section Label & Page Title */}
       <div className="page-title-row">
         <div>
-          <h1 className="page-title">Maternal Screening & Triage Queue</h1>
+          <div className="eyra-section-label">Point-of-Care Encounters</div>
+          <h1 className="page-title">Patient Triage & Screening Queue</h1>
           <p className="page-subtitle">
-            Point-of-care encounters synced from frontline ASHA tablets. Evaluated deterministically under MoHFW guidelines.
+            Community maternal health encounters captured offline by ASHA workers. Evaluated deterministically to ensure timely, dignified clinical care.
           </p>
         </div>
       </div>
 
-      {/* Toolbar: Search, Risk Filters, Status */}
+      {/* Toolbar: Search & Filter Pills */}
       <div className="toolbar">
-        {/* Search Input */}
+        {/* Search */}
         <div className="search-input-wrapper">
           <Search size={16} className="search-icon" />
           <input
@@ -91,13 +90,13 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
           />
         </div>
 
-        {/* Triage Risk Filter Pills */}
+        {/* Triage Filter Pills */}
         <div className="filter-group">
           <button
             className={`filter-pill ${riskFilter === "ALL" ? "active" : ""}`}
             onClick={() => setRiskFilter("ALL")}
           >
-            All Cases ({cases.length})
+            All Patients ({cases.length})
           </button>
           <button
             className={`filter-pill ${riskFilter === "RED" ? "active-red" : ""}`}
@@ -122,34 +121,34 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
           </button>
         </div>
 
-        {/* Coordination Status Filter */}
+        {/* Status Select */}
         <div>
           <select
             className="form-control"
-            style={{ width: "auto", fontSize: "0.8125rem", padding: "6px 12px" }}
+            style={{ width: "auto", fontSize: "0.8125rem", padding: "8px 14px", borderRadius: "var(--radius-pill)" }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="ALL">All Statuses</option>
-            <option value="PENDING">Pending Doctor Review</option>
-            <option value="ACKNOWLEDGED">Advisory Issued</option>
+            <option value="ALL">All Care States</option>
+            <option value="PENDING">Pending Physician Guidance</option>
+            <option value="ACKNOWLEDGED">Advisory Formulated</option>
             <option value="DISPATCHED">108 Ambulance Dispatched</option>
           </select>
         </div>
       </div>
 
-      {/* Cases List */}
+      {/* Patient Cards List */}
       {loading ? (
         <div className="empty-state">
-          <Activity size={36} className="empty-state-icon" style={{ animation: "pulse-dot 1.5s infinite" }} />
-          <h3>Loading Triage Queue...</h3>
-          <p>Syncing cases from SQLite encrypted local storage...</p>
+          <Activity size={36} className="empty-state-icon" style={{ animation: "pulse-dot 1.5s infinite", color: "var(--medical-teal)" }} />
+          <h3 style={{ fontFamily: "var(--font-serif)" }}>Loading Patient Encounters...</h3>
+          <p>Synchronizing offline encrypted records from SQLite database...</p>
         </div>
       ) : filteredCases.length === 0 ? (
-        <div className="empty-state" style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-lg)" }}>
-          <User size={40} className="empty-state-icon" />
-          <h3>No matching cases</h3>
-          <p>No maternal screening cases matched the selected search or risk filters.</p>
+        <div className="empty-state">
+          <HeartHandshake size={42} className="empty-state-icon" color="var(--medical-teal)" />
+          <h3 style={{ fontFamily: "var(--font-serif)" }}>No patient encounters found</h3>
+          <p>No screening records matched your active search or risk filters.</p>
         </div>
       ) : (
         <div className="case-grid">
@@ -172,7 +171,7 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                 onClick={() => onSelectCase(c)}
                 style={{ cursor: "pointer" }}
               >
-                {/* Card Header: Patient Identity & Triage Badge */}
+                {/* Header: Patient Name in DM Serif Display + Triage Urgency Badge */}
                 <div className="case-card-header">
                   <div className="patient-identity">
                     <span className="patient-name">{c.patient_name}</span>
@@ -186,7 +185,7 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                     )}
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
                       <Clock size={13} />
                       {formatTimeElapsed(c.created_at)}
@@ -198,16 +197,16 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                         onSelectCase(c);
                       }}
                     >
-                      <span>Review Case</span>
+                      <span>Review Patient</span>
                       <ChevronRight size={14} />
                     </button>
                   </div>
                 </div>
 
-                {/* Patient Metadata & Location Row */}
+                {/* Patient Context & Location Row */}
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "0.875rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-main)", fontWeight: 500 }}>
-                    <MapPin size={15} color="var(--primary-blue)" />
+                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-primary)", fontWeight: 600 }}>
+                    <MapPin size={15} color="var(--medical-teal)" />
                     {c.village}
                   </span>
                   {c.age_years && (
@@ -220,9 +219,9 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                     <span>Gravida: <strong>G{c.gravida}P{c.para ?? 0}</strong></span>
                   )}
                   {hasAudio && (
-                    <span className="badge badge-blue">
+                    <span className="badge badge-teal">
                       <Mic size={12} />
-                      Voice Note
+                      Voice Note Captured
                     </span>
                   )}
                 </div>
@@ -245,7 +244,7 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
 
                   {/* Danger Signs Tags */}
                   {activeDangerSigns.length > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginLeft: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginLeft: "4px" }}>
                       {activeDangerSigns.map((s, idx) => (
                         <span key={idx} className="danger-tag">
                           ⚠ {s}
@@ -255,30 +254,30 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                   )}
                 </div>
 
-                {/* Clinical Rationale Box */}
+                {/* Clinical Rationale Note */}
                 {c.assessment?.clinical_rationale && (
                   <div className="case-rationale">
-                    <strong>Triage Assessment:</strong> {c.assessment.clinical_rationale}
+                    <strong style={{ color: "var(--text-primary)" }}>Clinical Evaluation:</strong> {c.assessment.clinical_rationale}
                   </div>
                 )}
 
-                {/* Card Bottom Bar */}
+                {/* Card Bottom: ASHA Attribution and Live State */}
                 <div className="case-actions-bar">
-                  <div className="asha-info">
-                    <span>Frontline ASHA Worker:</span>
-                    <strong style={{ color: "var(--text-main)" }}>{c.worker_id || "ANM / Community ASHA"}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                    <span>Care Provider:</span>
+                    <strong style={{ color: "var(--text-primary)" }}>{c.worker_id || "Community ASHA"}</strong>
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     {c.ambulance_status ? (
-                      <span className="badge badge-blue">
+                      <span className="badge badge-teal">
                         <Truck size={13} />
                         108 Status: {c.ambulance_status}
                       </span>
                     ) : c.doctor_advisory ? (
                       <span className="badge badge-green">
                         <Stethoscope size={13} />
-                        Advisory Issued
+                        Advisory Formulated
                       </span>
                     ) : (
                       <span className="badge badge-amber">

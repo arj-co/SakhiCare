@@ -1,7 +1,6 @@
 import React from "react";
 import type { UserProfile } from "../api";
 import { 
-  HeartHandshake, 
   ShieldAlert, 
   Hospital, 
   Users, 
@@ -35,19 +34,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        {/* Brand */}
+        {/* Eyra Brand Header */}
         <div className="brand-section" onClick={() => onSelectTab("queue")}>
-          <div className="brand-icon">
-            <HeartHandshake size={24} />
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <span className="brand-title">SakhiCare</span>
-              <span className="brand-tag">Care Desk</span>
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "1px" }}>
-              Maternal Health Triage & 108 Dispatch Hub
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="brand-title">SakhiCare</span>
+            <span className="brand-badge">Care Desk</span>
           </div>
         </div>
 
@@ -57,8 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "queue" ? "active" : ""}`}
             onClick={() => onSelectTab("queue")}
           >
-            <ShieldAlert size={16} />
-            <span>Urgent Queue</span>
+            <ShieldAlert size={15} />
+            <span>Patients Queue</span>
             {criticalCount > 0 && (
               <span className="badge badge-red" style={{ padding: "1px 6px", fontSize: "0.7rem" }}>
                 {criticalCount}
@@ -70,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "transport" ? "active" : ""}`}
             onClick={() => onSelectTab("transport")}
           >
-            <Truck size={16} />
+            <Truck size={15} />
             <span>108 Transport</span>
           </button>
 
@@ -78,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "notifications" ? "active" : ""}`}
             onClick={() => onSelectTab("notifications")}
           >
-            <Bell size={16} />
+            <Bell size={15} />
             <span>Notifications</span>
           </button>
 
@@ -86,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "facilities" ? "active" : ""}`}
             onClick={() => onSelectTab("facilities")}
           >
-            <Hospital size={16} />
+            <Hospital size={15} />
             <span>Facilities</span>
           </button>
 
@@ -94,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "workers" ? "active" : ""}`}
             onClick={() => onSelectTab("workers")}
           >
-            <Users size={16} />
+            <Users size={15} />
             <span>ASHA Workers</span>
           </button>
 
@@ -102,29 +93,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`nav-btn ${currentTab === "protocols" ? "active" : ""}`}
             onClick={() => onSelectTab("protocols")}
           >
-            <BookOpen size={16} />
+            <BookOpen size={15} />
             <span>Protocols</span>
           </button>
         </nav>
 
-        {/* Status & Controls */}
+        {/* Status & Role Controls */}
         <div className="nav-right">
+          {/* Eyra-style Live Status Indicator */}
           <div className="live-indicator">
             <span className="live-dot"></span>
-            <span>{isLive ? "Live Sync" : "Connecting..."}</span>
+            <span>{isLive ? "Live Sync: Ready" : "Syncing..."}</span>
           </div>
 
           <button
             className="btn btn-secondary btn-sm"
             onClick={onRefresh}
-            title="Refresh active data"
-            style={{ padding: "6px 10px" }}
+            title="Refresh active patient records"
+            style={{ padding: "6px 12px" }}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
           </button>
 
+          {/* Role Switcher Pill */}
           <div className="role-badge">
-            <UserCheck size={14} color="var(--primary-blue)" />
+            <UserCheck size={14} color="var(--medical-teal)" />
             <select
               value={currentUser.role}
               onChange={(e) => onChangeRole(e.target.value as UserProfile["role"])}
