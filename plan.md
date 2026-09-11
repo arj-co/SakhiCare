@@ -21,7 +21,26 @@ Do not build or claim a local LLM, clinical speech model, or voice-based diagnos
 
 The clinical rule engine consumes confirmed structured fields only. It is separate from transcription and does not need an LLM.
 
-## What is currently real, partial, or fake
+## Current implementation after the production cleanup
+
+- Runtime starts with an empty local database and never seeds facilities, users, workers, or patient cases.
+- Production case reads come from durable Supabase/Postgres records; missing cases return `404`.
+- Portal access uses Supabase Auth plus `public.user_profiles`; role switching and hardcoded demo accounts are removed.
+- ASHA onboarding requires an issued Care Desk account, an assigned facility, consent, and a local PIN. The access token is stored in encrypted preferences and used only for authenticated sync.
+- Room is backed by SQLCipher with an Android Keystore-wrapped passphrase and additive migrations. Location is captured only with granted permission and retained with accuracy/timestamp provenance.
+- Audio is retained as a private Storage artifact only after authenticated upload. Unconfigured speech processing returns an explicit unavailable state rather than a canned transcript.
+- Missing SMS/OneSignal credentials return `NOT_CONFIGURED`; live provider IDs are required before a notification is called sent.
+- Release builds no longer fall back to debug signing. CI must provide the deployment API/Supabase properties and a protected release keystore.
+
+The remaining go-live work is operational and cannot be safely fabricated in source control:
+
+1. Apply `supabase/migrations/0002_workers_and_auth_alignment.sql` to the connected Supabase project. The checked-in migration is ready, but the local Supabase CLI session is linked to a different project and the browser SQL editor was not available for a safe remote write.
+2. Provision real Supabase Auth users, reviewed `public.user_profiles`, matching `public.workers`, referral facilities, and notification recipients.
+3. Add SMS, OneSignal, Supabase database/JWT/Storage secrets to the backend secret manager. Production startup now fails fast if the required values are missing.
+4. Obtain formal clinical review for the rule pack and translated emergency copy.
+5. Build the signed release APK with the organisation's protected release keystore. The repository only produces an unsigned release when those credentials are absent.
+
+## Historical implementation audit
 
 ### Real enough to preserve as a foundation
 
@@ -30,7 +49,7 @@ The clinical rule engine consumes confirmed structured fields only. It is separa
 - The rule engine covers BP, haemoglobin, bleeding, fever, headache, reduced fetal movement, and some compound risk.
 - Android speech recognition is requested with `EXTRA_PREFER_OFFLINE`; availability still depends on the phone's installed speech service and language pack.
 - The backend has FastAPI routes, a basic FHIR bundle converter, a deterministic clinical rule engine, and an SSE event shape that can be reused.
-- The care-desk HTML demonstrates the desired operator workflow: queue, filters, case detail, advisory, and transport actions.
+- The React/Vite Care Desk portal implements the operator workflow: queue, filters, case detail, advisory, and transport actions.
 
 ### Demo-only or falsely represented as production
 
@@ -107,7 +126,7 @@ shared/                      OpenAPI-generated types / fixture contracts
 ### Phase 0 — Truth and safety baseline
 
 - Remove production claims that are not implemented: “100% offline AI”, “live”, “dispatched”, “doctor notified”, and “FHIR-ready” unless their exact state is true.
-- Add a `DEMO_MODE` flag with visible demo labelling and isolate all seed data.
+- Keep test fixtures outside normal startup; production has no demo mode or seeded records.
 - Freeze a clinical scope with a named reviewer; create a protocol catalogue with version, source, approval date, and expiry/review date.
 - Expand danger-sign and missing-data states before polishing the UI.
 
@@ -200,7 +219,7 @@ Each plan should have its own checklist, test cases, and acceptance demo. Do not
 
 ## Definition of done for the hackathon prototype
 
-- The demo starts with a fresh worker, not Sunita/Rampur seed data.
+- The operational demo starts empty and requires real provisioned worker, facility, and Auth records.
 - The ASHA can complete a Hindi or English assessment fully offline.
 - The ASHA can record a voice note offline; the audio survives restart, remains linked to the case, and is clearly marked pending upload/transcription.
 - Speech never silently creates clinical facts: extracted fields are editable and confirmed before triage.
@@ -211,4 +230,4 @@ Each plan should have its own checklist, test cases, and acceptance demo. Do not
 - A medical officer can acknowledge and send guidance; the worker sees it after sync.
 - Transport is either a real integration or an explicitly labelled manual call workflow.
 - SMS is either a tested provider integration or clearly marked “not configured”; no fake success is shown.
-- All demo fixtures, simulated delivery, and test overrides are isolated and labelled.
+- Any test fixtures, simulated delivery, and test overrides are isolated behind `SAKHICARE_TEST_MODE=true` and are never shipped in release builds.

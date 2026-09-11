@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import type { PregnancyCase, UserProfile } from "../api";
+import type { Facility, PregnancyCase, UserProfile } from "../api";
 import { 
   acknowledgeCase, 
   updateTransport, 
   getAudioStreamUrl, 
+  getAuthToken,
   fetchCaseDetail,
-  fetchFhirBundle
+  fetchFhirBundle,
+  fetchFacilities
 } from "../api";
 import { 
   X, 
@@ -39,13 +41,14 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 }) => {
   const [currentCase, setCurrentCase] = useState<PregnancyCase>(initialCase);
   const [advisoryText, setAdvisoryText] = useState("");
-  const [referralFacility, setReferralFacility] = useState("FAC-01");
+  const [referralFacility, setReferralFacility] = useState("");
   const [isSubmittingAdvisory, setIsSubmittingAdvisory] = useState(false);
 
   // Transport form state
-  const [vehicleId, setVehicleId] = useState("108-AMB-Rampur-04");
-  const [destinationFacility, setDestinationFacility] = useState("CHC Rampur");
-  const [driverPhone, setDriverPhone] = useState("9876543299");
+  const [vehicleId, setVehicleId] = useState("");
+  const [destinationFacility, setDestinationFacility] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isSubmittingTransport, setIsSubmittingTransport] = useState(false);
 
   // FHIR Export preview state
@@ -55,6 +58,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const [copiedFhir, setCopiedFhir] = useState(false);
 
   const [audioError, setAudioError] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -62,14 +66,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const assessment = currentCase.assessment;
   const risk = assessment?.risk_level || "GREEN";
   const dangerSigns = assessment?.danger_signs || {};
-
-  // Quick clinical order templates
-  const quickTemplates = [
-    "Administer oral labetalol 100mg stat; maintain left lateral tilt; immediate 108 transfer to CHC.",
-    "Administer paracetamol 500mg; perform rapid malaria & urine albumin test at Sub-centre.",
-    "Keep patient flat; do not give oral fluids; prepare oxygen; emergency blood transfusion alert.",
-    "Immediate IM dexamethasone 6mg for fetal lung maturation; arrange obstetrician consultation."
-  ];
 
   useEffect(() => {
     async function loadLatest() {
@@ -82,6 +78,46 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
     }
     loadLatest();
   }, [caseId]);
+
+  useEffect(() => {
+    fetchFacilities().then(({ facilities: registeredFacilities }) => {
+      setFacilities(registeredFacilities);
+      if (!referralFacility && registeredFacilities.length === 1) {
+        setReferralFacility(registeredFacilities[0].id);
+      }
+    }).catch(() => setFacilities([]));
+  }, [referralFacility]);
+
+  useEffect(() => {
+    if (!currentCase.audio_artifact) {
+      setAudioUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let objectUrl: string | null = null;
+    setAudioError(false);
+    setAudioUrl(null);
+
+    fetch(getAudioStreamUrl(caseId), {
+      headers: { Authorization: `Bearer ${getAuthToken() || ""}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Audio request failed: ${response.status}`);
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setAudioUrl(objectUrl);
+      })
+      .catch((error: unknown) => {
+        if ((error as Error).name !== "AbortError") setAudioError(true);
+      });
+
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [caseId, currentCase.audio_artifact]);
 
   const handleSubmitAdvisory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,6 +266,28 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               </div>
             </div>
 
+            {/* Point-of-care location */}
+            <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px" }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: "6px" }}>Point-of-care location</div>
+              {currentCase.latitude != null && currentCase.longitude != null ? (
+                <>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>
+                    {currentCase.latitude.toFixed(6)}, {currentCase.longitude.toFixed(6)}
+                    {currentCase.location_accuracy_m != null ? ` ±${Math.round(currentCase.location_accuracy_m)} m` : ""}
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${currentCase.latitude},${currentCase.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "inline-block", marginTop: "8px", color: "var(--medical-teal)", fontSize: "0.8rem" }}
+                  >Open map location
+                  </a>
+                </>
+              ) : (
+                <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Location was not captured or permission was unavailable on the worker device.</div>
+              )}
+            </div>
+
             {/* Protocol & Rationale */}
             <div style={{ background: "#FFFFFF", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "18px", boxShadow: "var(--shadow-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
@@ -248,9 +306,9 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     ✓ ASHA Safe Actions:
                   </div>
                   <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)", lineHeight: 1.6 }}>
-                    {(assessment?.asha_safe_actions || ["Dial 108 ambulance", "Position in left lateral tilt", "Accompany to facility"]).map((act, i) => (
+                    {assessment?.asha_safe_actions?.length ? assessment.asha_safe_actions.map((act, i) => (
                       <li key={i}>{act}</li>
-                    ))}
+                    )) : <li>No approved ASHA action was recorded for this assessment.</li>}
                   </ul>
                 </div>
 
@@ -259,9 +317,9 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                     ⚠ Clinician Orders Only:
                   </div>
                   <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.75rem", color: "var(--text-body)", lineHeight: 1.6 }}>
-                    {(assessment?.clinician_directed_actions || ["IV cannulation & fluids", "Magnesium Sulphate loading", "Antihypertensive administration"]).map((act, i) => (
+                    {assessment?.clinician_directed_actions?.length ? assessment.clinician_directed_actions.map((act, i) => (
                       <li key={i}>{act}</li>
-                    ))}
+                    )) : <li>No clinician-directed action was recorded for this assessment.</li>}
                   </ul>
                 </div>
               </div>
@@ -283,7 +341,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 
                 <audio
                   controls
-                  src={getAudioStreamUrl(caseId)}
+                  src={audioUrl || undefined}
                   onError={() => setAudioError(true)}
                   style={{ width: "100%", height: "36px" }}
                 />
@@ -332,31 +390,6 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
               {canDoctorAct ? (
                 <form onSubmit={handleSubmitAdvisory}>
                   <div className="form-group">
-                    <label className="form-label" style={{ fontSize: "0.75rem" }}>Rapid Clinical Presets:</label>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      {quickTemplates.map((t, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setAdvisoryText(t)}
-                          style={{
-                            textAlign: "left",
-                            background: "var(--bg-card-warm)",
-                            border: "1px solid var(--border-subtle)",
-                            borderRadius: "var(--radius-sm)",
-                            padding: "6px 10px",
-                            fontSize: "0.75rem",
-                            color: "var(--text-body)",
-                            cursor: "pointer"
-                          }}
-                        >
-                          &bull; {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="form-group">
                     <label className="form-label">Clinical Guidance Instructions:</label>
                     <textarea
                       rows={3}
@@ -375,8 +408,10 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                       value={referralFacility}
                       onChange={(e) => setReferralFacility(e.target.value)}
                     >
-                      <option value="FAC-01">Rampur Primary Health Centre (PHC) — BEmOC Basic Care</option>
-                      <option value="FAC-02">Chandanpur Community Health Centre (CHC) — Blood Bank & Surgery</option>
+                      <option value="">Select a registered facility</option>
+                      {facilities.map((facility) => (
+                        <option key={facility.id} value={facility.id}>{facility.name} ({facility.type})</option>
+                      ))}
                     </select>
                   </div>
 

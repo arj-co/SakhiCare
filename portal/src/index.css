@@ -63,6 +63,44 @@
   --radius-pill: 9999px;
 }
 
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f3f6f4;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+  display: grid;
+  gap: 16px;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #dce7e1;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(24, 52, 43, 0.12);
+}
+
+.auth-card label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: #2c4038;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #c9d8d0;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.auth-card h1, .auth-card p { margin: 0; }
+.auth-card p { color: #60736a; line-height: 1.55; }
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;

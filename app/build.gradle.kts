@@ -24,12 +24,24 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+    }
+    val releaseStoreFile = providers.gradleProperty("RELEASE_STORE_FILE").orNull
+    val releaseStorePassword = providers.gradleProperty("RELEASE_STORE_PASSWORD").orNull
+    val releaseKeyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+    val releaseKeyPassword = providers.gradleProperty("RELEASE_KEY_PASSWORD").orNull
+    if (releaseStoreFile != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseStoreFile)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+        buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -40,6 +52,15 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+    val configuredApiBaseUrl = providers.gradleProperty("SAKHICARE_API_BASE_URL").orNull ?: "https://configure-sakhicare-api.invalid/"
+    val configuredSupabaseUrl = providers.gradleProperty("SUPABASE_URL").orNull ?: "https://configure-supabase.invalid/"
+    val configuredSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY").orNull ?: ""
+    buildTypes.all {
+        buildConfigField("String", "SAKHICARE_API_BASE_URL", "\"${configuredApiBaseUrl.trimEnd('/')}/\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${configuredSupabaseUrl.trimEnd('/')}/\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$configuredSupabaseAnonKey\"")
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"

@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
@@ -21,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -29,6 +32,7 @@ import com.sakhicare.app.data.preferences.OnboardingPreferences
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.sync.NetworkMonitor
+import com.sakhicare.app.sync.SakhiCareApiClient
 import com.sakhicare.app.ui.CaseDetailScreen
 import com.sakhicare.app.ui.DashboardScreen
 import com.sakhicare.app.ui.MyCasesScreen
@@ -53,6 +57,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Initialize offline Room repository
+        SakhiCareApiClient.initialize(this)
         PatientRepository.initialize(this)
 
         networkMonitor = NetworkMonitor(this)
@@ -61,6 +66,15 @@ class MainActivity : ComponentActivity() {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 200)
             }
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                201
+            )
         }
 
         setContent {
@@ -78,6 +92,7 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
 
     val initialScreen = if (prefs.isOnboardingCompleted) Screen.Dashboard else Screen.Onboarding
     var currentScreen by remember { mutableStateOf<Screen>(initialScreen) }
+    var isUnlocked by remember { mutableStateOf(!prefs.isOnboardingCompleted) }
 
     val initialLang = try {
         AppLanguage.valueOf(prefs.selectedLanguage)
@@ -94,29 +109,36 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
         networkMonitor?.startMonitoring()
     }
 
-    Scaffold(
-        containerColor = BackgroundSoft,
-        bottomBar = {
-            val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment || currentScreen is Screen.MyCases
-            if (showBottomNav) {
-                ModernBottomNav(
-                    currentScreen = currentScreen,
-                    currentLanguage = currentLanguage,
-                    onNavigate = { currentScreen = it }
-                )
+    if (prefs.isOnboardingCompleted && !isUnlocked) {
+        LocalPinLockScreen(
+            currentLanguage = currentLanguage,
+            onUnlock = { isUnlocked = true }
+        )
+    } else {
+        Scaffold(
+            containerColor = BackgroundSoft,
+            bottomBar = {
+                val showBottomNav = currentScreen is Screen.Dashboard || currentScreen is Screen.NewAssessment || currentScreen is Screen.MyCases
+                if (showBottomNav) {
+                    ModernBottomNav(
+                        currentScreen = currentScreen,
+                        currentLanguage = currentLanguage,
+                        onNavigate = { currentScreen = it }
+                    )
+                }
             }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val screen = currentScreen) {
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (val screen = currentScreen) {
                 Screen.Onboarding -> OnboardingScreen(
                     currentLanguage = currentLanguage,
                     onLanguageSelected = { currentLanguage = it },
                     onCompleteOnboarding = {
+                        isUnlocked = true
                         currentScreen = Screen.Dashboard
                     }
                 )
@@ -163,6 +185,92 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                         currentScreen = Screen.MyCases
                     }
                 }
+            }
+        }
+    }
+}
+
+}
+
+
+@Composable
+private fun LocalPinLockScreen(
+    currentLanguage: AppLanguage,
+    onUnlock: () -> Unit,
+) {
+    val context = LocalContext.current
+    val prefs = remember { OnboardingPreferences(context) }
+    var pin by remember { mutableStateOf("") }
+    var invalidAttempt by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundSoft)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "SakhiCare",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    color = Primary,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Text(
+                text = if (currentLanguage == AppLanguage.HINDI) "स्थानीय PIN दर्ज करें" else "Enter your local PIN",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = Neutral900,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+            Text(
+                text = "This keeps saved maternal-health records protected on this phone.",
+                style = MaterialTheme.typography.bodyMedium.copy(color = Neutral500),
+            )
+            OutlinedTextField(
+                value = pin,
+                onValueChange = {
+                    if (it.length <= 6 && it.all(Char::isDigit)) {
+                        pin = it
+                        invalidAttempt = false
+                    }
+                },
+                label = { Text("PIN") },
+                singleLine = true,
+                isError = invalidAttempt,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            )
+            if (invalidAttempt) {
+                Text(
+                    text = "Incorrect PIN. Try again.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Button(
+                onClick = {
+                    if (pin.isNotBlank() && pin == prefs.localPin) {
+                        onUnlock()
+                    } else {
+                        invalidAttempt = true
+                    }
+                },
+                enabled = pin.isNotBlank(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Text("Unlock", fontWeight = FontWeight.Bold)
             }
         }
     }

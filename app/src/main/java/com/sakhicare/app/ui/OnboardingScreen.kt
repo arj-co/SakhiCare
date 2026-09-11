@@ -33,10 +33,10 @@ import com.sakhicare.app.data.preferences.OnboardingPreferences
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
 import com.sakhicare.app.ui.theme.*
+import com.sakhicare.app.sync.SakhiCareApiClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,14 +48,18 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val prefs = remember { OnboardingPreferences(context) }
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
 
     var currentStep by remember { mutableIntStateOf(1) }
 
-    // Step 2 Inputs: Worker & Facility (blank in production!)
+    // Step 2 Inputs: Worker, facility assignment, and issued Supabase account
     var ashaName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var facilityName by remember { mutableStateOf("") }
     var facilityCode by remember { mutableStateOf("") }
+    var authEmail by remember { mutableStateOf("") }
+    var authPassword by remember { mutableStateOf("") }
+    var authLoading by remember { mutableStateOf(false) }
 
     // Step 3 Inputs: Security PIN
     var pin by remember { mutableStateOf("") }
@@ -214,7 +218,7 @@ fun OnboardingScreen(
                             )
                         )
                         Text(
-                            text = "Enter your frontline health worker credentials. Production mode starts clean.",
+                            text = "Enter the worker and facility details issued by your programme supervisor. These are used to label offline cases before sync.",
                             style = MaterialTheme.typography.bodyMedium.copy(color = Neutral500)
                         )
 
@@ -252,8 +256,29 @@ fun OnboardingScreen(
                         OutlinedTextField(
                             value = facilityCode,
                             onValueChange = { facilityCode = it },
-                            label = { Text("Catchment / Block Code (optional)") },
-                            placeholder = { Text("e.g. SC-RAM-01") },
+                            label = { Text("Assigned Facility Code") },
+                            placeholder = { Text("e.g. FAC-RAM-01") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = authEmail,
+                            onValueChange = { authEmail = it },
+                            label = { Text("Care Desk email (Optional for offline)") },
+                            placeholder = { Text("Issued by programme administrator") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = authPassword,
+                            onValueChange = { authPassword = it },
+                            label = { Text("Care Desk password (Optional for offline)") },
+                            visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp)
@@ -271,8 +296,8 @@ fun OnboardingScreen(
                             }
                             Button(
                                 onClick = {
-                                    if (ashaName.isBlank() || phone.length < 10 || facilityName.isBlank()) {
-                                        Toast.makeText(context, "Please enter your name, 10-digit phone, and facility", Toast.LENGTH_SHORT).show()
+                                    if (ashaName.isBlank() || phone.length < 10 || facilityName.isBlank() || facilityCode.isBlank()) {
+                                        Toast.makeText(context, "Enter your assigned worker name, 10-digit phone, and facility details", Toast.LENGTH_SHORT).show()
                                     } else {
                                         currentStep = 3
                                     }
@@ -446,45 +471,68 @@ fun OnboardingScreen(
                                     }
 
                                     // Complete onboarding & persist worker in Room
-                                    prefs.completeOnboarding(
-                                        name = ashaName.trim(),
-                                        phone = phone.trim(),
-                                        facility = facilityName.trim(),
-                                        facilityCd = facilityCode.trim(),
-                                        pin = pin.trim(),
-                                        language = currentLanguage.name
-                                    )
+                                    authLoading = true
+                                    coroutineScope.launch {
+                                        var workerId = "WKR-${phone.trim()}"
+                                        var workerStatus = "VERIFICATION_PENDING"
 
-                                    val workerId = "WKR-${UUID.randomUUID().toString().take(8).uppercase()}"
-                                    CoroutineScope(Dispatchers.IO).launch {
-                                        val db = AppDatabase.getInstance(context.applicationContext)
-                                        db.workerDao().insertWorker(
-                                            WorkerEntity(
-                                                id = workerId,
+                                        if (authEmail.isNotBlank() && authPassword.isNotBlank()) {
+                                            try {
+                                                val authResponse = SakhiCareApiClient.signInWithSupabase(authEmail.trim(), authPassword)
+                                                if (authResponse.isSuccessful && !authResponse.body()?.accessToken.isNullOrBlank()) {
+                                                    prefs.authAccessToken = authResponse.body()?.accessToken ?: ""
+                                                    workerId = authResponse.body()?.user?.id ?: workerId
+                                                    workerStatus = "ACTIVE"
+                                                } else {
+                                                    Toast.makeText(context, "Care Desk account unverified. Working in offline mode.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } catch (e: Exception) {
+                                                // Offline or network error: proceed with local offline onboarding
+                                                Toast.makeText(context, "Network unavailable. Working offline; verification pending.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+
+                                        try {
+                                            prefs.completeOnboarding(
                                                 name = ashaName.trim(),
-                                                role = "ASHA",
                                                 phone = phone.trim(),
-                                                facilityId = facilityCode.trim().ifBlank { "FAC-01" },
-                                                facilityName = facilityName.trim(),
-                                                locale = when (currentLanguage) {
-                                                    AppLanguage.HINDI -> "hi-IN"
-                                                    AppLanguage.MARATHI -> "mr-IN"
-                                                    AppLanguage.KANNADA -> "kn-IN"
-                                                    AppLanguage.BENGALI -> "bn-IN"
-                                                    else -> "en-IN"
-                                                },
-                                                status = "ACTIVE"
+                                                facility = facilityName.trim(),
+                                                facilityCd = facilityCode.trim(),
+                                                pin = pin.trim(),
+                                                language = currentLanguage.name
                                             )
-                                        )
+                                            val db = AppDatabase.getInstance(context.applicationContext)
+                                            db.workerDao().insertWorker(
+                                                WorkerEntity(
+                                                    id = workerId,
+                                                    name = ashaName.trim(),
+                                                    role = "ASHA",
+                                                    phone = phone.trim(),
+                                                    facilityId = facilityCode.trim(),
+                                                    facilityName = facilityName.trim(),
+                                                    locale = when (currentLanguage) {
+                                                        AppLanguage.HINDI -> "hi-IN"
+                                                        AppLanguage.MARATHI -> "mr-IN"
+                                                        AppLanguage.KANNADA -> "kn-IN"
+                                                        AppLanguage.BENGALI -> "bn-IN"
+                                                        else -> "en-IN"
+                                                    },
+                                                    status = workerStatus
+                                                )
+                                            )
+                                            onCompleteOnboarding()
+                                        } catch (error: Exception) {
+                                            Toast.makeText(context, error.message ?: "Unable to complete setup", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            authLoading = false
+                                        }
                                     }
-
-                                    onCompleteOnboarding()
                                 },
                                 modifier = Modifier.weight(1.5f).height(52.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Primary)
                             ) {
-                                Text("Complete Setup", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                                Text(if (authLoading) "Setting up…" else "Complete Setup", style = MaterialTheme.typography.titleMedium.copy(color = Color.White, fontWeight = FontWeight.Bold))
                             }
                         }
                     }

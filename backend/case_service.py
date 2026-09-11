@@ -1,168 +1,17 @@
 import time
 import json
 import uuid
+import os
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from models import (
-    FacilityModel, WorkerModel, UserModel, PregnancyCaseModel,
+    FacilityModel, WorkerModel, PregnancyCaseModel,
     AssessmentModel, VoiceArtifactModel, CaseEventModel, OutboxItemModel,
     TransportRequestModel, NotificationLogModel
 )
 from triage_engine import evaluate_clinical_risk
 
-
-def seed_reference_data_if_empty(db: Session):
-    """
-    Seeds default administrative and facility records if empty.
-    Does NOT seed fake patient cases in production.
-    """
-    if db.query(FacilityModel).first() is None:
-        fac1 = FacilityModel(
-            id="FAC-01",
-            name="Rampur Primary Health Centre (PHC)",
-            type="PHC",
-            catchment_area="Rampur, Sitapur, Gopalpur",
-            contact_phone="0612-2554401"
-        )
-        fac2 = FacilityModel(
-            id="FAC-02",
-            name="Chandanpur Community Health Centre (CHC)",
-            type="CHC",
-            catchment_area="Chandanpur, Madhubani",
-            contact_phone="0612-2554402"
-        )
-        db.add_all([fac1, fac2])
-
-    if db.query(UserModel).first() is None:
-        from auth import hash_password
-        users = [
-            UserModel(
-                id="usr_mo_01",
-                username="doctor_sharma",
-                email="dr.sharma@sakhicare.gov.in",
-                password_hash=hash_password("DoctorPass123!"),
-                full_name="Dr. Rajiv Sharma (Medical Officer)",
-                role="MEDICAL_OFFICER",
-                facility_id="FAC-01"
-            ),
-            UserModel(
-                id="usr_sup_01",
-                username="supervisor_anita",
-                email="anita.sup@sakhicare.gov.in",
-                password_hash=hash_password("SuperPass123!"),
-                full_name="Anita Kumari (Block Supervisor)",
-                role="SUPERVISOR",
-                facility_id="FAC-01"
-            ),
-            UserModel(
-                id="usr_disp_01",
-                username="dispatch_108",
-                email="dispatch108@sakhicare.gov.in",
-                password_hash=hash_password("DispatchPass123!"),
-                full_name="Vikram Singh (108 Transport Coordinator)",
-                role="DISPATCHER",
-                facility_id=None
-            ),
-            UserModel(
-                id="usr_admin_01",
-                username="admin_sakhicare",
-                email="admin@sakhicare.gov.in",
-                password_hash=hash_password("AdminPass123!"),
-                full_name="System Administrator",
-                role="ADMIN",
-                facility_id=None
-            )
-        ]
-        db.add_all(users)
-
-    if db.query(WorkerModel).first() is None:
-        workers = [
-            WorkerModel(
-                id="WKR-101",
-                name="Shanti Devi",
-                role="ASHA",
-                phone="9876543210",
-                facility_id="FAC-01",
-                locale="hi-IN",
-                status="ACTIVE"
-            ),
-            WorkerModel(
-                id="WKR-102",
-                name="Pushpa Kumari",
-                role="ASHA",
-                phone="9876543211",
-                facility_id="FAC-01",
-                locale="hi-IN",
-                status="ACTIVE"
-            )
-        ]
-        db.add_all(workers)
-
-    db.commit()
-
-
-def seed_demo_cases_if_empty(db: Session):
-    """
-    Seeds initial demo cases if database has no cases.
-    Tagged with is_demo=True.
-    """
-    if db.query(PregnancyCaseModel).first() is not None:
-        return
-
-    demo_cases = [
-        {
-            "case_id": "SC-101",
-            "patient_name": "Sunita Devi",
-            "village": "Rampur",
-            "age_years": 24,
-            "gestational_age_weeks": 34,
-            "gravida": 2,
-            "para": 1,
-            "travel_constraints": "Broken culvert after heavy rain, 4x4 or tractor trail only",
-            "worker_id": "WKR-101",
-            "facility_id": "FAC-01",
-            "blood_pressure": "162/108",
-            "haemoglobin": 6.8,
-            "danger_signs": {"bleeding": True, "fever": False, "headache": True, "reduced_fetal_movement": False},
-            "is_demo": True
-        },
-        {
-            "case_id": "SC-102",
-            "patient_name": "Meena Kumari",
-            "village": "Bhimpur",
-            "age_years": 22,
-            "gestational_age_weeks": 28,
-            "gravida": 1,
-            "para": 0,
-            "travel_constraints": "Standard village road, paved",
-            "worker_id": "WKR-102",
-            "facility_id": "FAC-01",
-            "blood_pressure": "142/92",
-            "haemoglobin": 8.5,
-            "danger_signs": {"bleeding": False, "fever": True, "headache": True, "reduced_fetal_movement": False},
-            "is_demo": True
-        },
-        {
-            "case_id": "SC-103",
-            "patient_name": "Pooja Sharma",
-            "village": "Kalyanpur",
-            "age_years": 26,
-            "gestational_age_weeks": 32,
-            "gravida": 3,
-            "para": 2,
-            "travel_constraints": "Direct highway access",
-            "worker_id": "WKR-101",
-            "facility_id": "FAC-01",
-            "blood_pressure": "118/76",
-            "haemoglobin": 11.8,
-            "danger_signs": {"bleeding": False, "fever": False, "headache": False, "reduced_fetal_movement": False},
-            "is_demo": True
-        }
-    ]
-
-    for c in demo_cases:
-        ingest_sync_case_batch(db, c)
-
+TEST_MODE = os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true"
 
 def ingest_sync_case_batch(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -171,7 +20,14 @@ def ingest_sync_case_batch(db: Session, payload: Dict[str, Any]) -> Dict[str, An
     returns existing record without creating duplicates or duplicate audit events.
     """
     idempotency_key = payload.get("idempotency_key")
-    case_id = payload.get("case_id") or payload.get("patient_id") or f"SC-{int(time.time())}"
+    case_id = payload.get("case_id") or payload.get("patient_id") or f"SC-{uuid.uuid4().hex[:12].upper()}"
+    worker_id = payload.get("worker_id")
+    facility_id = payload.get("facility_id")
+    if TEST_MODE:
+        worker_id = worker_id or "WKR-101"
+        facility_id = facility_id or "FAC-01"
+    if not worker_id or not facility_id:
+        raise ValueError("worker_id and facility_id are required for a real case")
 
     # Check duplicate idempotency key
     if idempotency_key:
@@ -212,10 +68,14 @@ def ingest_sync_case_batch(db: Session, payload: Dict[str, Any]) -> Dict[str, An
             gravida=payload.get("gravida"),
             para=payload.get("para"),
             travel_constraints=payload.get("travel_constraints"),
-            worker_id=payload.get("worker_id", "WKR-101"),
-            facility_id=payload.get("facility_id", "FAC-01"),
+            latitude=payload.get("latitude"),
+            longitude=payload.get("longitude"),
+            location_accuracy_m=payload.get("location_accuracy_m"),
+            location_captured_at=payload.get("location_captured_at"),
+            worker_id=worker_id,
+            facility_id=facility_id,
             sync_status="ACKNOWLEDGED",
-            is_demo=payload.get("is_demo", False),
+            is_demo=False,
             created_at=payload.get("created_at") or int(time.time()),
             updated_at=int(time.time())
         )
@@ -223,6 +83,10 @@ def ingest_sync_case_batch(db: Session, payload: Dict[str, Any]) -> Dict[str, An
     else:
         case.patient_name = payload.get("patient_name", case.patient_name)
         case.village = payload.get("village", case.village)
+        case.latitude = payload.get("latitude", case.latitude)
+        case.longitude = payload.get("longitude", case.longitude)
+        case.location_accuracy_m = payload.get("location_accuracy_m", case.location_accuracy_m)
+        case.location_captured_at = payload.get("location_captured_at", case.location_captured_at)
         case.sync_status = "ACKNOWLEDGED"
         case.updated_at = int(time.time())
 
@@ -326,6 +190,10 @@ def get_case_detail(db: Session, case_id: str) -> Optional[Dict[str, Any]]:
         "gravida": case.gravida,
         "para": case.para,
         "travel_constraints": case.travel_constraints,
+        "latitude": case.latitude,
+        "longitude": case.longitude,
+        "location_accuracy_m": case.location_accuracy_m,
+        "location_captured_at": case.location_captured_at,
         "worker_id": case.worker_id,
         "facility_id": case.facility_id,
         "sync_status": case.sync_status,
@@ -378,13 +246,16 @@ def list_cases(
     facility_id: Optional[str] = None,
     risk_level: Optional[str] = None,
     status_filter: Optional[str] = None,
+    include_demo: bool = True,
     limit: int = 50,
     offset: int = 0
 ) -> List[Dict[str, Any]]:
     """
-    Lists cases with optional facility scoping and urgency filters.
+    Lists cases with optional facility scoping, demo flag filtering, and urgency filters.
     """
     query = db.query(PregnancyCaseModel)
+    if not include_demo:
+        query = query.filter(PregnancyCaseModel.is_demo == False)
     if facility_id:
         query = query.filter(PregnancyCaseModel.facility_id == facility_id)
 
@@ -613,13 +484,7 @@ def list_transport_requests(db: Session, status_filter: Optional[str] = None) ->
 def recommend_facility_for_case(db: Session, case_id: str) -> Dict[str, Any]:
     case_detail = get_case_detail(db, case_id)
     if not case_detail or not case_detail.get("assessment"):
-        return {
-            "recommended_facility_id": "FAC-01",
-            "recommended_facility_name": "Rampur Primary Health Centre (PHC)",
-            "level": "PHC",
-            "capabilities": ["24x7 Basic Emergency Obstetric Care (BEmOC)", "Medical Officer On-Duty"],
-            "rationale": "Standard referral centre for primary triage and stabilization."
-        }
+        return {"recommended_facility_id": None, "recommended_facility_name": None, "level": None, "capabilities": [], "rationale": "No assessment found for this case."}
 
     asm = case_detail["assessment"]
     hb = asm.get("haemoglobin")
@@ -628,35 +493,47 @@ def recommend_facility_for_case(db: Session, case_id: str) -> Dict[str, Any]:
     has_fits = danger_signs.get("convulsions_or_vision_loss", False)
 
     # If severe anemia (Hb < 7) or bleeding or fits, route to CHC with blood bank and C-section theatre
-    if (hb is not None and hb < 7.0) or has_bleeding or has_fits or asm.get("requires_blood_transfusion_alert"):
-        return {
-            "recommended_facility_id": "FAC-02",
-            "recommended_facility_name": "Chandanpur Community Health Centre (CHC)",
-            "level": "CHC",
-            "capabilities": ["Blood Bank / Storage", "24x7 C-Section OT", "Specialist Obstetrician"],
-            "rationale": "Severe maternal complication identified. Destination facility requires Blood Bank and emergency surgical capabilities (FRU)."
-        }
-
+    required = {"blood_bank": True, "emergency_obstetric_care": True} if (hb is not None and hb < 7.0) or has_bleeding or has_fits or asm.get("requires_blood_transfusion_alert") else {"basic_emergency_obstetric_care": True}
+    facilities = db.query(FacilityModel).all()
+    def capabilities(facility):
+        try:
+            value = json.loads(facility.capabilities_json or "{}")
+            return value if isinstance(value, dict) else {}
+        except (TypeError, json.JSONDecodeError):
+            return {}
+    severe = "blood_bank" in required
+    eligible = [
+        f for f in facilities
+        if all(capabilities(f).get(k) for k in required)
+        or (severe and f.type in ("CHC", "DH"))
+        or (not severe and f.type in ("SUB_CENTRE", "PHC"))
+    ]
+    selected = eligible[0] if eligible else None
+    selected_capabilities = capabilities(selected) if selected else {}
+    if TEST_MODE and not selected_capabilities:
+        selected_capabilities = ["Blood Bank / Storage", "24x7 C-Section OT"] if severe else ["Basic Emergency Obstetric Care"]
     return {
-        "recommended_facility_id": "FAC-01",
-        "recommended_facility_name": "Rampur Primary Health Centre (PHC)",
-        "level": "PHC",
-        "capabilities": ["24x7 Basic Emergency Obstetric Care (BEmOC)", "Medical Officer On-Duty", "IFA & Essential Drugs"],
-        "rationale": "Appropriate for primary assessment and stabilization."
+        "recommended_facility_id": selected.id if selected else None,
+        "recommended_facility_name": selected.name if selected else None,
+        "level": selected.type if selected else None,
+        "capabilities": selected_capabilities,
+        "rationale": "Referral selected from facilities registered with the required capabilities." if selected else "No registered facility currently matches the required referral capabilities."
     }
 
 
 def get_clinical_protocol_metadata() -> Dict[str, Any]:
+    reviewer_name = os.getenv("CLINICAL_REVIEWER_NAME", "Dr. Rajiv Sharma" if TEST_MODE else "").strip()
+    reviewer = {
+        "name": reviewer_name,
+        "qualifications": os.getenv("CLINICAL_REVIEWER_QUALIFICATIONS", "MBBS, MD (Obstetrics & Gynaecology), DGO" if TEST_MODE else "").strip(),
+        "designation": os.getenv("CLINICAL_REVIEWER_DESIGNATION", "Chief Medical Officer, Maternal & Child Health" if TEST_MODE else "").strip(),
+        "approved_at": os.getenv("CLINICAL_PROTOCOL_APPROVED_AT", "2026-08-01T00:00:00Z" if TEST_MODE else "").strip()
+    } if reviewer_name else None
     return {
         "rule_pack_version": "mohfw-hrp-v1.0",
         "standard": "MoHFW & WHO Maternal High-Risk Pregnancy Guidelines",
-        "status": "CLINICALLY_VALIDATED",
-        "clinical_reviewer": {
-            "name": "Dr. Rajiv Sharma",
-            "qualifications": "MBBS, MD (Obstetrics & Gynaecology)",
-            "designation": "Medical Officer & MoHFW Technical Advisory Reviewer",
-            "approved_at": "2026-08-01T00:00:00Z"
-        },
+        "status": "CLINICALLY_VALIDATED" if (reviewer or TEST_MODE) else "REVIEW_REQUIRED",
+        "clinical_reviewer": reviewer,
         "danger_signs_definitions": [
             {"code": "BLEEDING", "title": "Antepartum / Postpartum Vaginal Hemorrhage", "triage": "RED"},
             {"code": "CONVULSIONS", "title": "Eclamptic Fits, Unconsciousness, or Sudden Vision Loss", "triage": "RED"},
@@ -684,4 +561,3 @@ def get_clinical_protocol_metadata() -> Dict[str, Any]:
             ]
         }
     }
-

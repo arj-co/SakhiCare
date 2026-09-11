@@ -12,6 +12,9 @@ class FacilityModel(Base):
     type = Column(String(32), default="PHC")  # PHC, CHC, DH
     catchment_area = Column(String(128), nullable=True)
     contact_phone = Column(String(32), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    capabilities_json = Column(Text, default="[]")
     created_at = Column(BigInteger, default=lambda: int(time.time()))
 
     cases = relationship("PregnancyCaseModel", back_populates="facility")
@@ -61,6 +64,10 @@ class PregnancyCaseModel(Base):
     gravida = Column(Integer, nullable=True)
     para = Column(Integer, nullable=True)
     travel_constraints = Column(String(256), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    location_accuracy_m = Column(Float, nullable=True)
+    location_captured_at = Column(BigInteger, nullable=True)
     worker_id = Column(String(64), ForeignKey("workers.id"), nullable=True, index=True)
     facility_id = Column(String(64), ForeignKey("facilities.id"), nullable=True, index=True)
     sync_status = Column(String(32), default="ACKNOWLEDGED", index=True)
@@ -106,7 +113,10 @@ class VoiceArtifactModel(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     case_id = Column(String(64), ForeignKey("pregnancy_cases.id", ondelete="CASCADE"), nullable=False, index=True)
-    file_path = Column(String(256), nullable=False)
+    # storage_path is a private Supabase Storage object path in production.
+    # file_path remains a local-development compatibility field only.
+    storage_path = Column(String(256), nullable=True)
+    file_path = Column(String(256), nullable=True)
     filename = Column(String(128), nullable=False)
     mime_type = Column(String(64), default="audio/m4a")
     file_size_bytes = Column(BigInteger, default=0)
@@ -185,4 +195,3 @@ class NotificationLogModel(Base):
     escalated_to = Column(String(64), nullable=True)
     created_at = Column(BigInteger, default=lambda: int(time.time()), index=True)
     delivered_at = Column(BigInteger, nullable=True)
-

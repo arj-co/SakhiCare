@@ -29,6 +29,10 @@ data class PregnancyCaseEntity(
     val gravida: Int?,
     val para: Int?,
     val travelConstraints: String?,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationAccuracyM: Float? = null,
+    val locationCapturedAt: Long? = null,
     val workerId: String,
     val facilityId: String,
     val syncStatus: String = "SAVED_LOCALLY",
@@ -165,4 +169,3 @@ data class VoiceArtifactEntity(
     val uploadedAtTimestamp: Long? = null,
     val createdAtTimestamp: Long = System.currentTimeMillis()
 )
-

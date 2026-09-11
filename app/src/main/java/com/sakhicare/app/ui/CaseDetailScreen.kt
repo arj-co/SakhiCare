@@ -27,7 +27,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sakhicare.app.data.PatientCase
+import com.sakhicare.app.data.PatientRepository
 import com.sakhicare.app.data.RiskLevel
+import com.sakhicare.app.data.db.entities.VoiceArtifactEntity
 import com.sakhicare.app.fhir.FhirBundleConverter
 import com.sakhicare.app.i18n.AppLanguage
 import com.sakhicare.app.i18n.Strings
@@ -43,6 +45,16 @@ fun CaseDetailScreen(
     val context = LocalContext.current
     var showFhirJson by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+
+    val voiceArtifact: VoiceArtifactEntity? by PatientRepository.getVoiceArtifactFlow(patientCase.id, context).collectAsState(initial = null)
+    var isPlayingAudio by remember { mutableStateOf(false) }
+    var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer?.release()
+        }
+    }
 
     val (riskColor, riskBg, riskLabel, riskAdvice) = when (patientCase.riskLevel) {
         RiskLevel.RED -> Tuple4(TriageRed, TriageRedBg, "RED — Emergency Referral", Strings.get("red_advice", currentLanguage))
@@ -176,6 +188,159 @@ fun CaseDetailScreen(
                         Column {
                             Text("108 Emergency Transport Active", style = MaterialTheme.typography.labelMedium.copy(color = TriageRedDark, fontWeight = FontWeight.Bold))
                             Text(patientCase.ambulanceStatus, style = MaterialTheme.typography.bodySmall.copy(color = Neutral800))
+                        }
+                    }
+                }
+            }
+
+            // ── Voice Note Audio Artifact ──
+            voiceArtifact?.let { artifact ->
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Header with status chip
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    color = CoralPrimary.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Mic, contentDescription = null, tint = CoralPrimary, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        "Voice Note (आवाज़ रिकॉर्डिंग)",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Neutral900)
+                                    )
+                                    Text(
+                                        "${artifact.durationSeconds}s • ${(artifact.fileSizeBytes / 1024).coerceAtLeast(1)} KB",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Neutral500)
+                                    )
+                                }
+                            }
+
+                            val (statusText, statusBg, statusFg) = when (artifact.uploadStatus) {
+                                "UPLOADED" -> Triple("Uploaded", TriageGreenBg, TriageGreen)
+                                "QUEUED", "UPLOADING" -> Triple("Waiting to upload", TriageAmberBg, TriageAmber)
+                                "FAILED" -> Triple("Processing failed", TriageRedBg, TriageRed)
+                                else -> Triple("Audio saved locally", Neutral100, Neutral800)
+                            }
+
+                            Surface(color = statusBg, shape = RoundedCornerShape(8.dp)) {
+                                Text(
+                                    statusText,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall.copy(color = statusFg, fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+
+                        // Audio Player Controls
+                        val audioFile = remember(artifact.localAudioPath) { java.io.File(artifact.localAudioPath) }
+                        Surface(
+                            color = Neutral100,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (audioFile.exists()) {
+                                            if (isPlayingAudio) {
+                                                mediaPlayer?.stop()
+                                                mediaPlayer?.release()
+                                                mediaPlayer = null
+                                                isPlayingAudio = false
+                                            } else {
+                                                try {
+                                                    val player = android.media.MediaPlayer().apply {
+                                                        setDataSource(audioFile.absolutePath)
+                                                        prepare()
+                                                        setOnCompletionListener {
+                                                            isPlayingAudio = false
+                                                        }
+                                                        start()
+                                                    }
+                                                    mediaPlayer = player
+                                                    isPlayingAudio = true
+                                                } catch (_: Exception) {
+                                                    isPlayingAudio = false
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .background(CoralPrimary, androidx.compose.foundation.shape.CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPlayingAudio) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlayingAudio) "Stop Audio" else "Play Audio",
+                                        tint = Color.White
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isPlayingAudio) "Playing voice note..." else "Tap to listen to original audio",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, color = Neutral900)
+                                    )
+                                    Text(
+                                        text = "SHA-256: ${artifact.sha256Checksum.take(12)}... (Encrypted app storage)",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Neutral500, fontSize = 11.sp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Transcript Box
+                        if (!artifact.transcript.isNullOrBlank()) {
+                            Surface(
+                                color = SageGreenLight.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = ForestGreen, modifier = Modifier.size(14.dp))
+                                        Text("Confirmed Spoken Notes", style = MaterialTheme.typography.labelSmall.copy(color = ForestGreen, fontWeight = FontWeight.Bold))
+                                    }
+                                    Text(
+                                        "\"${artifact.transcript}\"",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = Neutral800, lineHeight = 20.sp)
+                                    )
+                                }
+                            }
+                        } else {
+                            Surface(
+                                color = Neutral100,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "Voice review needed — audio captured offline, form fields verified manually by ASHA.",
+                                    modifier = Modifier.padding(12.dp),
+                                    style = MaterialTheme.typography.bodySmall.copy(color = Neutral600)
+                                )
+                            }
                         }
                     }
                 }

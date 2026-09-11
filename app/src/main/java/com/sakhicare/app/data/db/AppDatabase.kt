@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.sakhicare.app.data.db.daos.*
 import com.sakhicare.app.data.db.entities.*
 import com.sakhicare.app.data.security.SecureKeyStorage
@@ -19,7 +21,7 @@ import net.sqlcipher.database.SupportFactory
         OutboxItemEntity::class,
         VoiceArtifactEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,8 +57,41 @@ abstract class AppDatabase : RoomDatabase() {
                 DB_NAME
             )
                 .openHelperFactory(supportFactory)
-                .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
+        }
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS voice_artifacts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        caseId TEXT NOT NULL,
+                        localAudioPath TEXT NOT NULL,
+                        mimeType TEXT NOT NULL,
+                        fileSizeBytes INTEGER NOT NULL,
+                        sha256Checksum TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        durationSeconds INTEGER NOT NULL,
+                        transcript TEXT,
+                        processingStatus TEXT NOT NULL,
+                        uploadStatus TEXT NOT NULL,
+                        retentionDeadlineTimestamp INTEGER,
+                        confirmedAtTimestamp INTEGER,
+                        createdAtTimestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pregnancy_cases ADD COLUMN latitude REAL")
+                db.execSQL("ALTER TABLE pregnancy_cases ADD COLUMN longitude REAL")
+                db.execSQL("ALTER TABLE pregnancy_cases ADD COLUMN locationAccuracyM REAL")
+                db.execSQL("ALTER TABLE pregnancy_cases ADD COLUMN locationCapturedAt INTEGER")
+            }
         }
 
         /**

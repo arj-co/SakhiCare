@@ -169,3 +169,194 @@ def test_roster_and_facility_endpoints():
     wkr_ids = [w["id"] for w in wkr_data["workers"]]
     assert "WKR-101" in wkr_ids
     assert "WKR-102" in wkr_ids
+
+
+def test_persistence_across_backend_restart():
+    """Acceptance Check 1: Restarting backend session does not lose cases, audio metadata, or timeline events."""
+    from database import SessionLocal
+    from models import PregnancyCaseModel, VoiceArtifactModel, CaseEventModel
+    import uuid
+
+    uid = uuid.uuid4().hex[:6]
+    test_case_id = f"SC-RESTART-{uid}"
+
+    # Sync a new case
+    sync_resp = client.post("/api/v1/sync/batch", json={
+        "items": [{
+            "idempotency_key": f"idemp-restart-{uid}",
+            "case_id": test_case_id,
+            "patient_name": "Gita Devi",
+            "village": "Rampur",
+            "blood_pressure": "165/110",
+            "haemoglobin": 7.4,
+            "danger_signs": {"severe_headache": True},
+            "facility_id": "FAC-01",
+            "worker_id": "WKR-101"
+        }]
+    })
+    assert sync_resp.status_code == 200
+
+    # Attach audio metadata
+    with SessionLocal() as db:
+        artifact = VoiceArtifactModel(
+            id=f"ART-RESTART-{uid}",
+            case_id=test_case_id,
+            filename="note.m4a",
+            file_path="/files/voice_notes/note.m4a",
+            sha256="abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+            duration_seconds=18,
+            language="hi-IN",
+            transcript="मरीज गीता देवी तेज सिरदर्द",
+            upload_status="UPLOADED"
+        )
+        db.add(artifact)
+        db.commit()
+
+    # Simulate backend restart by querying fresh SessionLocal completely isolated from previous handles
+    with SessionLocal() as restarted_db:
+        case = restarted_db.query(PregnancyCaseModel).filter(PregnancyCaseModel.id == test_case_id).first()
+        assert case is not None
+        assert case.patient_name == "Gita Devi"
+        assert case.village == "Rampur"
+        assert case.facility_id == "FAC-01"
+
+        # Verify assessment persisted
+        assert len(case.assessments) >= 1
+        assert case.assessments[0].risk_level == "RED"
+
+        # Verify audio metadata persisted
+        audio = restarted_db.query(VoiceArtifactModel).filter(VoiceArtifactModel.case_id == test_case_id).first()
+        assert audio is not None
+        assert audio.sha256 == "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        assert audio.duration_seconds == 18
+
+        # Verify timeline events persisted
+        events = restarted_db.query(CaseEventModel).filter(CaseEventModel.case_id == test_case_id).all()
+        assert len(events) >= 1
+        assert events[0].event_type == "SYNC_ACKNOWLEDGED"
+
+
+def test_facility_scoping_enforced():
+    """Acceptance Check 2: A worker or facility user cannot access another facility's cases."""
+    # Login as doctor at FAC-01
+    doc_resp = client.post("/api/v1/auth/login", json={
+        "username": "doctor_sharma",
+        "password": "DoctorPass123!"
+    })
+    assert doc_resp.status_code == 200
+    doc_token = doc_resp.json()["access_token"]
+    fac1_headers = {"Authorization": f"Bearer {doc_token}"}
+
+    # Case SC-101 is in FAC-01 -> Doctor at FAC-01 CAN access it
+    ok_resp = client.get("/api/v1/cases/SC-101", headers=fac1_headers)
+    assert ok_resp.status_code == 200
+
+    # Case SC-103 is in FAC-02 -> Doctor at FAC-01 CANNOT access it (403 Forbidden)
+    forbidden_resp = client.get("/api/v1/cases/SC-103", headers=fac1_headers)
+    assert forbidden_resp.status_code == 403
+    assert "Access denied" in forbidden_resp.json()["detail"]
+
+    # Doctor at FAC-01 listing cases only sees FAC-01 cases
+    list_resp = client.get("/api/v1/cases", headers=fac1_headers)
+    assert list_resp.status_code == 200
+    returned_cases = list_resp.json()["cases"]
+    for c in returned_cases:
+        assert c["facility_id"] == "FAC-01"
+
+    # Administrator CAN access cases across all facilities
+    admin_resp = client.post("/api/v1/auth/login", json={
+        "username": "admin",
+        "password": "AdminPass123!"
+    })
+    admin_token = admin_resp.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    admin_c103 = client.get("/api/v1/cases/SC-103", headers=admin_headers)
+    assert admin_c103.status_code == 200
+
+
+def test_medical_officer_acknowledgement_sync_back():
+    """Acceptance Check 7: A medical officer can acknowledge a case and worker receives the advisory after sync."""
+    import uuid
+    uid = uuid.uuid4().hex[:6]
+    ack_case_id = f"SC-ACK-SYNC-{uid}"
+
+    # 1. Ingest case
+    client.post("/api/v1/sync/batch", json={
+        "items": [{
+            "idempotency_key": f"idemp-ack-{uid}",
+            "case_id": ack_case_id,
+            "patient_name": "Pushpa Devi",
+            "village": "Rampur",
+            "blood_pressure": "158/104",
+            "haemoglobin": 8.0,
+            "danger_signs": {"severe_headache": True},
+            "facility_id": "FAC-01",
+            "worker_id": "WKR-101"
+        }]
+    })
+
+    # 2. Medical Officer acknowledges case and formulates advisory
+    mo_resp = client.post("/api/v1/auth/login", json={
+        "username": "doctor_sharma",
+        "password": "DoctorPass123!"
+    })
+    mo_token = mo_resp.json()["access_token"]
+
+    advisory_content = "Administer oral nifedipine 10mg stat, repeat BP after 20 mins, keep 108 on standby"
+    ack_resp = client.post(
+        f"/api/v1/cases/{ack_case_id}/acknowledge",
+        json={"advisory_text": advisory_content, "referral_facility_id": "FAC-02"},
+        headers={"Authorization": f"Bearer {mo_token}"}
+    )
+    assert ack_resp.status_code == 200
+    assert ack_resp.json()["doctor_advisory"] == advisory_content
+
+    # 3. Worker subsequent sync for the case retrieves the formulated doctor advisory
+    sync_back_resp = client.post("/api/v1/sync/batch", json={
+        "items": [{
+            "idempotency_key": f"idemp-ack-resync-{uid}",
+            "case_id": ack_case_id,
+            "patient_name": "Pushpa Devi",
+            "village": "Rampur",
+            "blood_pressure": "158/104",
+            "haemoglobin": 8.0,
+            "facility_id": "FAC-01",
+            "worker_id": "WKR-101"
+        }]
+    })
+    assert sync_back_resp.status_code == 200
+    res_data = sync_back_resp.json()
+    assert res_data["items"][0]["doctor_advisory"] == advisory_content
+
+
+def test_multi_session_sse_consistency_and_stale_disconnect():
+    """Acceptance Check 3 & 8: SSE broadcast reaches subscribers and post-refresh reads match database."""
+    from main import broadcast_sse_event, sse_subscribers
+    import asyncio
+
+    # Setup two subscriber queues representing two portal browser tabs
+    queue_tab1 = asyncio.Queue()
+    queue_tab2 = asyncio.Queue()
+    sse_subscribers.append(queue_tab1)
+    sse_subscribers.append(queue_tab2)
+
+    sample_case = {
+        "case_id": "SC-SSE-SESSION-01",
+        "patient_name": "Rekha Kumari",
+        "sync_status": "ACKNOWLEDGED",
+        "doctor_advisory": "Approved transfer"
+    }
+
+    # Broadcast event
+    asyncio.run(broadcast_sse_event("NEW_CASE", {"case": sample_case}))
+
+    # Both sessions receive identical broadcast
+    msg1 = asyncio.run(queue_tab1.get())
+    msg2 = asyncio.run(queue_tab2.get())
+    assert "SC-SSE-SESSION-01" in msg1
+    assert "SC-SSE-SESSION-01" in msg2
+
+    # Clean up subscriber queues
+    sse_subscribers.remove(queue_tab1)
+    sse_subscribers.remove(queue_tab2)

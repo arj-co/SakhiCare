@@ -180,9 +180,6 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                       {risk === "RED" ? <AlertOctagon size={13} /> : (risk === "AMBER" ? <AlertTriangle size={13} /> : <CheckCircle size={13} />)}
                       {risk} TRIAGE
                     </span>
-                    {c.is_demo && (
-                      <span className="badge badge-gray">DEMO</span>
-                    )}
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>

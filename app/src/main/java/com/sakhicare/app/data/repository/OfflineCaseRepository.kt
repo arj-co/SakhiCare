@@ -7,6 +7,7 @@ import com.sakhicare.app.data.db.AppDatabase
 import com.sakhicare.app.data.db.daos.CaseWithAssessment
 import com.sakhicare.app.data.db.entities.*
 import com.sakhicare.app.sync.OutboxSyncWorker
+import com.sakhicare.app.location.LocationCapture
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -24,12 +25,7 @@ class OfflineCaseRepository(
 
     val casesFlow: Flow<List<PatientCase>> = database.caseDao().getAllCasesWithAssessmentFlow()
         .map { dbCases ->
-            val mapped = dbCases.map { caseWithAssessmentToDomain(it) }
-            if (DemoConfig.isDemoEnabled) {
-                DemoFixtures.getDemoCases() + mapped
-            } else {
-                mapped
-            }
+            dbCases.map { caseWithAssessmentToDomain(it) }
         }
         .flowOn(ioDispatcher)
 
@@ -40,18 +36,14 @@ class OfflineCaseRepository(
         .flowOn(ioDispatcher)
 
     suspend fun getCaseById(id: String): PatientCase? = withContext(ioDispatcher) {
-        if (DemoConfig.isDemoEnabled) {
-            val demo = DemoFixtures.getDemoCases().find { it.id == id }
-            if (demo != null) return@withContext demo
-        }
         val dbCase = database.caseDao().getCaseWithAssessment(id)
         dbCase?.let { caseWithAssessmentToDomain(it) }
     }
 
     suspend fun saveNewAssessment(
         patientCase: PatientCase,
-        workerId: String = "ASHA-DEFAULT",
-        facilityId: String = "FACILITY-DEFAULT",
+        workerId: String,
+        facilityId: String,
         context: Context? = null,
         audioFile: java.io.File? = null,
         voiceTranscript: String? = null,
@@ -60,6 +52,7 @@ class OfflineCaseRepository(
         val caseId = patientCase.id.ifBlank { "SC-${UUID.randomUUID().toString().take(8).uppercase()}" }
         val assessmentId = "ASM-${UUID.randomUUID().toString().take(8).uppercase()}"
         val idempotencyKey = UUID.randomUUID().toString()
+        val capturedLocation = context?.let { LocationCapture(it).lastKnown() }
 
         // 1. Insert Case Entity
         val caseEntity = PregnancyCaseEntity(
@@ -72,6 +65,10 @@ class OfflineCaseRepository(
             gravida = patientCase.gravida,
             para = patientCase.para,
             travelConstraints = patientCase.travelConstraints,
+            latitude = patientCase.latitude ?: capturedLocation?.latitude,
+            longitude = patientCase.longitude ?: capturedLocation?.longitude,
+            locationAccuracyM = patientCase.locationAccuracyM ?: capturedLocation?.accuracyM,
+            locationCapturedAt = patientCase.locationCapturedAt ?: capturedLocation?.capturedAt,
             workerId = workerId,
             facilityId = facilityId,
             syncStatus = "QUEUED",
@@ -198,7 +195,11 @@ class OfflineCaseRepository(
             "risk_level" to patientCase.riskLevel.name,
             "risk_score" to patientCase.riskScore,
             "rule_pack_version" to patientCase.rulePackVersion,
-            "created_at" to patientCase.assessmentTimestamp
+            "created_at" to patientCase.assessmentTimestamp,
+            "latitude" to (patientCase.latitude ?: capturedLocation?.latitude),
+            "longitude" to (patientCase.longitude ?: capturedLocation?.longitude),
+            "location_accuracy_m" to (patientCase.locationAccuracyM ?: capturedLocation?.accuracyM),
+            "location_captured_at" to (patientCase.locationCapturedAt ?: capturedLocation?.capturedAt)
         )
 
         database.outboxDao().insertItem(
@@ -335,6 +336,10 @@ class OfflineCaseRepository(
             gravida = c.gravida,
             para = c.para,
             travelConstraints = c.travelConstraints,
+            latitude = c.latitude,
+            longitude = c.longitude,
+            locationAccuracyM = c.locationAccuracyM,
+            locationCapturedAt = c.locationCapturedAt,
             bloodPressure = null, // Vitals are in observations
             haemoglobin = null,
             dangerSigns = DangerSigns(),

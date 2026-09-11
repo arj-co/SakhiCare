@@ -15,13 +15,14 @@ logger = logging.getLogger("sakhicare.onesignal")
 logging.basicConfig(level=logging.INFO)
 
 # Configuration from environment variables
-ONESIGNAL_APP_ID = os.getenv("ONESIGNAL_APP_ID", "sakhicare-app-id-placeholder")
+ONESIGNAL_APP_ID = os.getenv("ONESIGNAL_APP_ID", "")
 ONESIGNAL_REST_API_KEY = os.getenv("ONESIGNAL_REST_API_KEY", "")
 ONESIGNAL_API_URL = "https://onesignal.com/api/v1/notifications"
 
 # In-memory registry of registered device player IDs & channels
 registered_devices: Dict[str, Dict[str, Any]] = {}
 notification_history: List[Dict[str, Any]] = []
+APP_ENV = os.getenv("APP_ENV", "development").lower()
 
 
 async def send_emergency_triage_notification(
@@ -46,7 +47,7 @@ async def send_emergency_triage_notification(
     signs_str = ", ".join(active_signs) if active_signs else "Severe High BP (>=140/90)"
 
     title = f"🚨 EMERGENCY: High-Risk Case ({patient_id})"
-    body = f"Patient {patient_name} in {village} | BP: {blood_pressure} | Signs: {signs_str}. Immediate triage required!"
+    body = f"Case {patient_id} in {village} | BP: {blood_pressure} | Signs: {signs_str}. Immediate triage required!"
 
     payload = {
         "app_id": effective_app_id,
@@ -56,7 +57,6 @@ async def send_emergency_triage_notification(
         "data": {
             "type": "EMERGENCY_TRIAGE",
             "patient_id": patient_id,
-            "patient_name": patient_name,
             "village": village,
             "blood_pressure": blood_pressure,
             "danger_signs": danger_signs,
@@ -97,7 +97,6 @@ async def send_clinical_advisory_notification(
         "data": {
             "type": "CARE_DESK_ADVISORY",
             "patient_id": patient_id,
-            "patient_name": patient_name,
             "advisory_text": advisory_text,
             "sender": doctor_or_operator_name,
             "timestamp": datetime.now(timezone.utc).isoformat()
@@ -145,12 +144,13 @@ async def _dispatch_onesignal_request(payload: Dict[str, Any], api_key: str, cat
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     
-    # If API key is not set or placeholder, simulate delivery seamlessly
-    if not api_key or "placeholder" in api_key.lower() or not api_key.strip():
-        simulated_id = f"sim-os-{int(datetime.now().timestamp() * 1000)}"
+    # A demo may show an explicit unconfigured state, but production must never
+    # fabricate a provider receipt.
+    if os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true" and (not api_key or "placeholder" in api_key.lower() or not api_key.strip()):
+        simulated_id = f"dev-sim-os-{int(datetime.now().timestamp() * 1000)}"
         record = {
-            "status": "success",
-            "mode": "simulated",
+            "status": "dev_simulation",
+            "mode": "development_only_simulation",
             "notification_id": simulated_id,
             "category": category,
             "recipients": 1,
@@ -160,13 +160,21 @@ async def _dispatch_onesignal_request(payload: Dict[str, Any], api_key: str, cat
             "timestamp": timestamp
         }
         notification_history.append(record)
-        logger.info(f"⚡ [OneSignal SIMULATOR] Dispatched {category} notification: {payload.get('headings', {}).get('en')} -> Recipients: Simulated active subscribers")
+        logger.info(f"OneSignal development-only simulation for {category}; production never takes this path")
         return {
             "id": simulated_id,
             "recipients": 1,
             "delivery": "simulated_success",
-            "message": "OneSignal API notification simulated successfully (Configure ONESIGNAL_REST_API_KEY in .env for live cloud push)",
+            "message": "Development-only notification simulation; configure OneSignal for live delivery",
             "details": record
+        }
+
+    if not api_key or "placeholder" in api_key.lower() or not api_key.strip():
+        return {
+            "id": None,
+            "recipients": 0,
+            "delivery": "not_configured",
+            "message": "OneSignal API credentials are not configured; no notification was sent",
         }
 
     # Execute real HTTP request to OneSignal API

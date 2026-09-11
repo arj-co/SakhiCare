@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import type { PregnancyCase, UserProfile } from "./api";
-import { fetchCases, login } from "./api";
+import { fetchCases, getAuthToken, getMe, login, loginWithSupabase, setAuthToken } from "./api";
 import { Navbar } from "./components/Navbar";
 import { UrgentQueue } from "./components/UrgentQueue";
 import { CaseDetailModal } from "./components/CaseDetailModal";
@@ -12,69 +12,49 @@ import { NotificationCenter } from "./components/NotificationCenter";
 import { AlertCircle, AlertTriangle, CheckCircle, Users } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const DEFAULT_USERS: Record<UserProfile["role"], UserProfile> = {
-  MEDICAL_OFFICER: {
-    id: "usr_mo_01",
-    username: "doctor_sharma",
-    full_name: "Dr. Rajiv Sharma (Medical Officer)",
-    role: "MEDICAL_OFFICER",
-    facility_id: "FAC-01",
-    email: "dr.sharma@sakhicare.gov.in"
-  },
-  SUPERVISOR: {
-    id: "usr_sup_01",
-    username: "supervisor_anita",
-    full_name: "Anita Kumari (Block Supervisor)",
-    role: "SUPERVISOR",
-    facility_id: "FAC-01",
-    email: "anita.sup@sakhicare.gov.in"
-  },
-  DISPATCHER: {
-    id: "usr_disp_01",
-    username: "dispatch_108",
-    full_name: "Vikram Singh (108 Transport Coordinator)",
-    role: "DISPATCHER",
-    facility_id: null,
-    email: "dispatch108@sakhicare.gov.in"
-  },
-  ADMIN: {
-    id: "usr_admin_01",
-    username: "admin_sakhicare",
-    full_name: "System Administrator",
-    role: "ADMIN",
-    facility_id: null,
-    email: "admin@sakhicare.gov.in"
-  }
-};
-
 export const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(DEFAULT_USERS.MEDICAL_OFFICER);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentTab, setCurrentTab] = useState<"queue" | "facilities" | "workers" | "protocols" | "transport" | "notifications">("queue");
   const [cases, setCases] = useState<PregnancyCase[]>([]);
   const [selectedCase, setSelectedCase] = useState<PregnancyCase | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loginMode, setLoginMode] = useState<"desk" | "supabase">("desk");
+  const [authUsername, setAuthUsername] = useState("doctor_sharma");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("DoctorPass123!");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const handleRoleChange = async (role: UserProfile["role"]) => {
-    const targetUser = DEFAULT_USERS[role];
-    setCurrentUser(targetUser);
-
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
     try {
-      const passwords: Record<string, string> = {
-        doctor_sharma: "DoctorPass123!",
-        supervisor_anita: "SuperPass123!",
-        dispatch_108: "DispatchPass123!",
-        admin_sakhicare: "AdminPass123!"
-      };
-      await login(targetUser.username, passwords[targetUser.username] || "Password123!");
-    } catch (err) {
-      console.warn("Backend auth offline or using cached session token", err);
+      if (loginMode === "supabase") {
+        const user = await loginWithSupabase(authEmail.trim(), authPassword);
+        setCurrentUser(user);
+      } else {
+        const res = await login(authUsername.trim(), authPassword);
+        setCurrentUser(res.user);
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Unable to sign in");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
+  const setDemoCreds = (user: string, pass: string) => {
+    setLoginMode("desk");
+    setAuthUsername(user);
+    setAuthPassword(pass);
+    setAuthError(null);
+  };
+
   const loadCases = useCallback(async () => {
+    if (!getAuthToken()) return;
     setLoading(true);
     setErrorMessage(null);
     try {
@@ -89,18 +69,31 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    handleRoleChange("MEDICAL_OFFICER");
-    loadCases();
+    if (getAuthToken()) {
+      getMe().then((user) => {
+        setCurrentUser(user);
+        void loadCases();
+      }).catch(() => setAuthToken(null));
+    } else {
+      setLoading(false);
+    }
   }, [loadCases]);
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setCurrentUser(null);
+    setCases([]);
+  };
 
   // Connect to SSE stream
   useEffect(() => {
+    if (!currentUser || !getAuthToken()) return;
     let eventSource: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
 
     const connectSSE = () => {
       try {
-        eventSource = new EventSource(`${API_BASE}/api/v1/live-stream`);
+        eventSource = new EventSource(`${API_BASE}/api/v1/live-stream?access_token=${encodeURIComponent(getAuthToken() || "")}`);
 
         eventSource.onopen = () => {
           setIsLive(true);
@@ -150,13 +143,14 @@ export const App: React.FC = () => {
       if (eventSource) eventSource.close();
       clearTimeout(reconnectTimeout);
     };
-  }, []);
+  }, [currentUser]);
 
   const stats = useMemo(() => {
     const red = cases.filter((c) => c.assessment?.risk_level === "RED").length;
     const amber = cases.filter((c) => c.assessment?.risk_level === "AMBER").length;
     const green = cases.filter((c) => c.assessment?.risk_level === "GREEN").length;
-    return { red, amber, green, total: cases.length };
+    const demoCount = cases.filter((c) => (c as any).is_demo).length;
+    return { red, amber, green, total: cases.length, demoCount };
   }, [cases]);
 
   const handleCaseUpdated = (updatedCase: PregnancyCase) => {
@@ -167,6 +161,117 @@ export const App: React.FC = () => {
     setSelectedCase(updatedCase);
   };
 
+  if (!currentUser) {
+    return (
+      <div className="auth-shell">
+        <form className="auth-card" onSubmit={handleLogin}>
+          <div className="eyebrow">SAKHICARE CARE DESK</div>
+          <h1>Sign in to the clinical operations desk</h1>
+          <p>Select your authentication mode and enter credentials.</p>
+
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${loginMode === "desk" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setLoginMode("desk")}
+            >
+              Desk / Local Login
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${loginMode === "supabase" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setLoginMode("supabase")}
+            >
+              Supabase Auth
+            </button>
+          </div>
+
+          {loginMode === "desk" ? (
+            <>
+              <label>
+                Username
+                <input
+                  type="text"
+                  value={authUsername}
+                  onChange={(event) => setAuthUsername(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  required
+                />
+              </label>
+
+              {/* Quick Demo Login Pills */}
+              <div style={{ marginTop: "8px", marginBottom: "16px" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+                  Quick Operator Fill:
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    onClick={() => setDemoCreds("doctor_sharma", "DoctorPass123!")}
+                  >
+                    Dr. Sharma (MO)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    onClick={() => setDemoCreds("dispatch_108", "DispatchPass123!")}
+                  >
+                    108 Dispatcher
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    onClick={() => setDemoCreds("admin", "AdminPass123!")}
+                  >
+                    Admin
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  required
+                />
+              </label>
+            </>
+          )}
+
+          {authError && <div className="alert alert-danger">{authError}</div>}
+          <button className="primary-button" type="submit" disabled={authLoading}>
+            {authLoading ? "Signing in…" : "Sign in securely"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Eyra-inspired TopBar */}
@@ -174,7 +279,7 @@ export const App: React.FC = () => {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         currentUser={currentUser}
-        onChangeRole={handleRoleChange}
+        onLogout={handleLogout}
         criticalCount={stats.red}
         totalCases={stats.total}
         isLive={isLive}
@@ -191,6 +296,15 @@ export const App: React.FC = () => {
             <button className="btn btn-secondary btn-sm" onClick={loadCases}>
               Retry Connection
             </button>
+          </div>
+        )}
+
+        {stats.demoCount > 0 && (
+          <div className="alert alert-info" style={{ background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.3)", color: "#1d4ed8", marginBottom: "16px" }}>
+            <AlertTriangle size={18} />
+            <div style={{ flex: 1 }}>
+              <strong>Demo Mode Active:</strong> {stats.demoCount} demonstration case(s) loaded. These cases are flagged with <code>is_demo=true</code> for training and operational testing.
+            </div>
           </div>
         )}
 

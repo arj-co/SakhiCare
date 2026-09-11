@@ -14,14 +14,6 @@ data class ParsedVoiceData(
 
 object VoiceHelper {
 
-    val sampleMultilingualDictations = listOf(
-        "मरीज सुनीता देवी, गांव रामपुर, बीपी 165/110, हीमोग्लोबिन 6.8, तेज सिरदर्द और खून बहना",
-        "Patient Sunita Devi village Rampur BP 155 over 95 haemoglobin 8.2 fever and severe headache",
-        "मरीज मीरा कुमार, गांव सीतापुर, बीपी 120/80, हीमोग्लोबिन 11.5, कोई लक्षण नहीं",
-        "Patient Radha Devi village Gopalpur BP 150 over 100 haemoglobin 8.5 severe headache and reduced movement",
-        "মরীয অনিতা দেবী, গ্রাম চন্দপুর, বিপি ১৬০/১১০, হিমোগ্লোবিন ৬.৮, রক্তস্রাব এবং তীব্র মাথা ব্যথা"
-    )
-
     private fun normalizeIndicSpeech(text: String): String {
         var res = text
         val mappings = listOf(

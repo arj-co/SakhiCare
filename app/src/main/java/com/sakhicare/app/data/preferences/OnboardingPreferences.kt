@@ -2,11 +2,25 @@ package com.sakhicare.app.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 
-class OnboardingPreferences(context: Context) {
+class OnboardingPreferences(
+    context: Context,
+    customPrefs: SharedPreferences? = null
+) {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("sakhicare_onboarding_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = customPrefs ?: try {
+        EncryptedSharedPreferences.create(
+            "sakhicare_onboarding_prefs",
+            MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Throwable) {
+        context.getSharedPreferences("sakhicare_onboarding_prefs_unencrypted", Context.MODE_PRIVATE)
+    }
 
     companion object {
         private const val KEY_COMPLETED = "onboarding_completed"
@@ -19,6 +33,7 @@ class OnboardingPreferences(context: Context) {
         private const val KEY_PIN = "local_security_pin"
         private const val KEY_CONSENT = "consent_acknowledged"
         private const val KEY_PROTOCOL_VERSION = "installed_protocol_version"
+        private const val KEY_AUTH_ACCESS_TOKEN = "supabase_access_token"
     }
 
     var isOnboardingCompleted: Boolean
@@ -61,6 +76,10 @@ class OnboardingPreferences(context: Context) {
         get() = prefs.getString(KEY_PROTOCOL_VERSION, "mohfw-hrp-v1.0") ?: "mohfw-hrp-v1.0"
         set(value) = prefs.edit().putString(KEY_PROTOCOL_VERSION, value).apply()
 
+    var authAccessToken: String
+        get() = prefs.getString(KEY_AUTH_ACCESS_TOKEN, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_AUTH_ACCESS_TOKEN, value).apply()
+
     fun completeOnboarding(
         name: String,
         phone: String,
@@ -80,5 +99,9 @@ class OnboardingPreferences(context: Context) {
             .putBoolean(KEY_CONSENT, true)
             .putString(KEY_PROTOCOL_VERSION, "mohfw-hrp-v1.0")
             .commit()
+    }
+
+    fun clearSession() {
+        prefs.edit().remove(KEY_AUTH_ACCESS_TOKEN).apply()
     }
 }

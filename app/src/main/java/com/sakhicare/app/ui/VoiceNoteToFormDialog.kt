@@ -340,24 +340,6 @@ fun VoiceNoteToFormDialog(
                         shape = RoundedCornerShape(12.dp)
                     )
 
-                    // Quick sample prompt chips for easy testing
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        SuggestionChip(
-                            onClick = {
-                                transcriptText = "मरीज ललिता देवी, गांव रामपुर, बीपी 150/100, हीमोग्लोबिन 7.2, खून बहना"
-                            },
-                            label = { Text("Sample Hindi", fontSize = 11.sp) }
-                        )
-                        SuggestionChip(
-                            onClick = {
-                                transcriptText = "Patient Sunita Devi village Rampur BP 160 over 110 haemoglobin 6.8 severe headache"
-                            },
-                            label = { Text("Sample English", fontSize = 11.sp) }
-                        )
-                    }
                 }
 
                 // 4. Extracted Candidate Fields (Review & Edit before Confirmation)

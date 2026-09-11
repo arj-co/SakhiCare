@@ -71,7 +71,6 @@ export interface PregnancyCase {
   sync_status: string;
   doctor_advisory?: string | null;
   ambulance_status?: string | null;
-  is_demo?: boolean;
   created_at?: number;
   updated_at?: number;
   assessment?: CaseAssessment | null;
@@ -160,6 +159,22 @@ export async function login(username: string, password: string): Promise<{ acces
   });
   setAuthToken(data.access_token);
   return data;
+}
+
+export async function loginWithSupabase(email: string, password: string): Promise<UserProfile> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!supabaseUrl || !anonKey) throw new Error("Supabase Auth is not configured for this Care Desk build");
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: anonKey },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw new Error("Supabase sign-in failed");
+  const session = await response.json() as { access_token?: string };
+  if (!session.access_token) throw new Error("Supabase did not return an access token");
+  setAuthToken(session.access_token);
+  return getMe();
 }
 
 export async function getMe(): Promise<UserProfile> {

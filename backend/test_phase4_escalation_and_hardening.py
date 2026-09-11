@@ -219,3 +219,90 @@ def test_clinical_protocol_metadata_endpoint():
     scope = data["scope_of_practice"]
     assert any("108" in act for act in scope["asha_safe_actions"])
     assert any("Magnesium Sulphate" in act for act in scope["clinician_directed_actions"])
+
+
+def test_sms_delivery_receipt_callback_separates_notification_from_clinical_state():
+    """Acceptance Check: Delivery receipt updates notification log without changing clinical acknowledgement."""
+    from models import NotificationLogModel
+    import uuid
+    import time
+
+    uid = uuid.uuid4().hex[:6]
+    test_case_id = f"SC-RECEIPT-{uid}"
+    provider_ref = f"telco-msg-{uid}"
+
+    # 1. Ingest clinical case
+    client.post("/api/v1/sync/batch", json=[{
+        "patient_id": test_case_id,
+        "patient_name": "Mamta Devi",
+        "village": "Rampur",
+        "blood_pressure": "142/92",
+        "haemoglobin": 9.4,
+        "danger_signs": {},
+        "risk_level": "AMBER"
+    }])
+
+    # 2. Record notification entry
+    with SessionLocal() as db:
+        entry = NotificationLogModel(
+            id=f"NOTIF-{uid}",
+            case_id=test_case_id,
+            channel="SMS",
+            recipient="+919876543201",
+            template_type="EMERGENCY_SMS",
+            content_preview="[SakhiCare] Case alert",
+            status="SENT",
+            provider_ref=provider_ref,
+            created_at=int(time.time())
+        )
+        db.add(entry)
+        db.commit()
+
+    # 3. Telco provider posts delivery callback
+    cb_resp = client.post("/api/v1/notifications/callbacks/sms", json={
+        "provider_ref": provider_ref,
+        "status": "DELIVERED",
+        "timestamp": int(time.time())
+    })
+    assert cb_resp.status_code == 200
+    assert cb_resp.json()["delivery_status"] == "DELIVERED"
+
+    # 4. Verify notification log updated to DELIVERED
+    with SessionLocal() as db:
+        updated_log = db.query(NotificationLogModel).filter(NotificationLogModel.provider_ref == provider_ref).first()
+        assert updated_log.status == "DELIVERED"
+        assert updated_log.delivered_at is not None
+
+    # 5. Verify case's clinical state is completely untouched (SMS sent != medical officer acknowledged)
+    case_resp = client.get(f"/api/v1/cases/{test_case_id}")
+    assert case_resp.status_code == 200
+    case_data = case_resp.json()
+    assert case_data["doctor_advisory"] is None  # Notification delivery did NOT forge physician advice!
+
+
+def test_demo_mode_filtering_and_purge():
+    """Acceptance Check: include_demo=false filters demo cases, and demo purge removes them cleanly."""
+    # Ensure demo fixtures exist
+    client.post("/api/v1/demo/seed")
+
+    # 1. Fetch cases including demo (default)
+    all_resp = client.get("/api/v1/cases?include_demo=true")
+    assert all_resp.status_code == 200
+    all_cases = all_resp.json()["cases"]
+    assert any(c.get("is_demo") is True for c in all_cases)
+
+    # 2. Fetch cases with include_demo=false
+    clean_resp = client.get("/api/v1/cases?include_demo=false")
+    assert clean_resp.status_code == 200
+    clean_cases = clean_resp.json()["cases"]
+    assert not any(c.get("is_demo") is True for c in clean_cases)
+
+    # 3. Admin purges demo cases
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "AdminPass123!"})
+    admin_token = admin_login.json()["access_token"]
+    purge_resp = client.post("/api/v1/demo/purge", headers={"Authorization": f"Bearer {admin_token}"})
+    assert purge_resp.status_code == 200
+    assert purge_resp.json()["purged_count"] >= 1
+
+    # Re-seed for subsequent test consistency
+    client.post("/api/v1/demo/seed")

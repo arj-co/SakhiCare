@@ -12,12 +12,14 @@ import io
 import wave
 import json
 import logging
+import os
 from datetime import datetime, timezone
 
 from triage_engine import evaluate_clinical_risk, ClinicalEvaluationResult
 from llm_engine import generate_clinical_differential, generate_family_counseling_script
 
 logger = logging.getLogger("sakhicare.speech_llm")
+TEST_MODE = os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true"
 
 # ── Medical Phonetic & Slang Lexicon for LLM Post-Correction ──
 PHONETIC_CLINICAL_RULES = [
@@ -82,22 +84,21 @@ class SpeechLLMProcessor:
 
         # 1. Patient Name (Extract using LLM semantic rules)
         name_match = re.search(r'(?:patient|name|patient\s*name|मरीज|मरीज़|नाम|রোগী|smt|mrs)\s+(?:is\s+|है\s+|হল\s+)?([a-zA-Z\u0900-\u097F\u0980-\u09FF\s]+?)(?:,|\svillage|\sfrom|\sगांव|\sगाँव|\sग्राम|\sbp|\sblood|\shaemoglobin|\shb|\sdanger|$)', cleaned, re.IGNORECASE)
-        patient_name = name_match.group(1).strip() if name_match else "Sunita Devi"
-        patient_name = " ".join([w.capitalize() for w in patient_name.split() if w.lower() not in ["devi", "kumari", "bai", "sharma"]]) + \
-                       (" Devi" if "devi" in patient_name.lower() or not any(x in patient_name.lower() for x in ["kumari", "bai", "sharma"]) else "")
+        patient_name = name_match.group(1).strip() if name_match else ""
+        patient_name = " ".join(w.capitalize() for w in patient_name.split())
 
         # 2. Village
         village_match = re.search(r'(?:village|from|area|गांव|गाँव|ग्राम|क्षेत्र)\s+(?:is\s+|है\s+|হল\s+)?([a-zA-Z\u0900-\u097F\u0980-\u09FF\s]+?)(?:,|\sbp|\sblood|\shaemoglobin|\shb|\sdanger|\sbleeding|$)', cleaned, re.IGNORECASE)
-        village = village_match.group(1).strip() if village_match else "Rampur"
+        village = village_match.group(1).strip() if village_match else ""
         village = " ".join([w.capitalize() for w in village.split()])
 
         # 3. Blood Pressure
         bp_match = re.search(r'(\d{2,3})\s*(?:\/|\s)\s*(\d{2,3})', cleaned)
-        blood_pressure = f"{bp_match.group(1)}/{bp_match.group(2)}" if bp_match else "145/95"
+        blood_pressure = f"{bp_match.group(1)}/{bp_match.group(2)}" if bp_match else ""
 
         # 4. Haemoglobin
         hb_match = re.search(r'(?:hb|haemoglobin|hemoglobin|हीमोग्लोबिन|हिमोग्लोबिन)\s*(?:is\s*|है\s*)?(\d{1,2}(?:\.\d{1,2})?)\s*(?:g\/dl|gram|gm)?', cleaned, re.IGNORECASE)
-        haemoglobin = float(hb_match.group(1)) if hb_match and float(hb_match.group(1)) <= 20.0 else 9.5
+        haemoglobin = float(hb_match.group(1)) if hb_match and float(hb_match.group(1)) <= 20.0 else None
 
         # 5. Danger Signs (with proper whitespace / word boundary checks)
         has_bleeding = bool(re.search(r'\b(?:bleeding|hemorrhage|blood)\b|(?:^|\s)(?:खून|रक्त|रक्तस्राव|রক্তস্রাব)(?:\s|$)|vaginal_bleeding_detected', lower))
@@ -120,7 +121,7 @@ class SpeechLLMProcessor:
         )
 
         diff_diag = generate_clinical_differential(
-            patient_id="SC-SPEECH-LLM",
+            patient_id="",
             patient_name=patient_name,
             blood_pressure=blood_pressure,
             haemoglobin=haemoglobin,
@@ -166,10 +167,14 @@ class SpeechLLMProcessor:
                 duration = wav.getnframes() / float(wav.getframerate())
                 logger.info(f"🎙️ [Speech-LLM] Processing {duration:.2f}s audio with LLM acoustic-semantic decoder...")
                 
-                # Representative acoustic transcript for test/demo audio
-                transcript = "मरीज सुनीता देवी गांव रामपुर बीपी एक सौ साठ बटा एक सौ दस हीमोग्लोबिन छह दशमलव आठ तेज सिरदर्द और खून बहना"
-                return cls.extract_and_reason_from_speech(transcript)
+                if not TEST_MODE:
+                    return {
+                        "status": "TRANSCRIPTION_UNAVAILABLE",
+                        "speech_llm_model": "not_configured",
+                        "transcript": None,
+                        "message": "Configure the approved on-device speech model before enabling audio transcription."
+                    }
+                return cls.extract_and_reason_from_speech("")
         except Exception as e:
-            logger.warning(f"🎙️ [Speech-LLM] Raw audio fallback: {e}")
-            transcript = "Patient Sunita Devi village Rampur BP 155 over 95 haemoglobin 8.5 fever and severe headache"
-            return cls.extract_and_reason_from_speech(transcript)
+            logger.warning(f"Speech processing failed: {e}")
+            return {"status": "TRANSCRIPTION_FAILED", "speech_llm_model": "not_configured", "transcript": None, "message": str(e)}

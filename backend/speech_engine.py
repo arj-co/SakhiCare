@@ -8,10 +8,12 @@ import re
 import io
 import wave
 import logging
+import os
 from typing import Dict, Any, List, Optional, Tuple
 from triage_engine import evaluate_clinical_risk, ClinicalEvaluationResult
 
 logger = logging.getLogger("sakhicare.speech_engine")
+TEST_MODE = os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true"
 
 # ── Indic Spoken Number & Word Normalizer ──
 INDIAN_NUMBER_MAP = {
@@ -80,7 +82,7 @@ def extract_clinical_slots(transcript: str) -> Dict[str, Any]:
 
     raw_name = (name_hi.group(1).strip() if name_hi else None) or \
                (name_bn.group(1).strip() if name_bn else None) or \
-               (name_en.group(1).strip() if name_en else "Sunita Devi")
+               (name_en.group(1).strip() if name_en else "")
     
     # Capitalize name
     clean_name = " ".join([w.capitalize() for w in raw_name.split() if w.lower() not in ["devi", "sharma", "kumari", "bai", "khatun"]]) + \
@@ -94,15 +96,15 @@ def extract_clinical_slots(transcript: str) -> Dict[str, Any]:
 
     raw_village = (village_hi.group(1).strip() if village_hi else None) or \
                   (village_bn.group(1).strip() if village_bn else None) or \
-                  (village_en.group(1).strip() if village_en else "Rampur")
+                  (village_en.group(1).strip() if village_en else "")
 
     # 3. Blood Pressure
     bp_match = re.search(r'(?:bp|blood pressure|बीपी|रक्तचाप|বিপি)?\s*(?:is\s*|है\s*)?(\d{2,3})\s*(?:\/|\s)\s*(\d{2,3})', norm_text, re.IGNORECASE)
-    blood_pressure = f"{bp_match.group(1)}/{bp_match.group(2)}" if bp_match else "120/80"
+    blood_pressure = f"{bp_match.group(1)}/{bp_match.group(2)}" if bp_match else ""
 
     # 4. Haemoglobin
     hb_match = re.search(r'(?:hb|haemoglobin|hemoglobin|हीमोग्लोबिन|হিমোগ্লোবিন)\s*(?:is\s*|है\s*|का\s*)?(\d{1,2}(?:\.\d{1,2})?)', norm_text, re.IGNORECASE)
-    haemoglobin = float(hb_match.group(1)) if hb_match else 11.0
+    haemoglobin = float(hb_match.group(1)) if hb_match else None
 
     # 5. Danger Signs (Indic & English Multilingual lexicon)
     bleeding = bool(re.search(r'bleeding|hemorrhage|blood|खून|रक्तस्राव|रक्त|রক্তস্রাব', lower_norm))
@@ -127,8 +129,8 @@ def extract_clinical_slots(transcript: str) -> Dict[str, Any]:
     )
 
     return {
-        "patient_name": clean_name or "Sunita Devi",
-        "village": raw_village or "Rampur",
+        "patient_name": clean_name,
+        "village": raw_village,
         "blood_pressure": blood_pressure,
         "haemoglobin": haemoglobin,
         "danger_signs": danger_signs,
@@ -152,8 +154,20 @@ def transcribe_offline_audio(audio_bytes: bytes, filename: str = "audio.wav") ->
 
             logger.info(f"🎙️ [Parakeet Audio Engine] Ingested WAV: {channels} channels, {sample_rate} Hz, {duration_sec:.2f}s")
             
-            # Simulated Parakeet-CTC FastConformer recognition for rural audio dictation
-            transcript = "मरीज सुनीता देवी, गांव रामपुर, बीपी 155/98, हीमोग्लोबिन 8.2, सिरदर्द और आंखों के आगे अंधेरा"
+            if not TEST_MODE:
+                return {
+                    "status": "TRANSCRIPTION_UNAVAILABLE",
+                    "engine": "not_configured",
+                    "audio_metadata": {
+                        "duration_seconds": round(duration_sec, 2),
+                        "sample_rate": sample_rate,
+                        "channels": channels
+                    },
+                    "transcript": None,
+                    "slots": None,
+                    "message": "Configure the approved on-device speech model before enabling audio transcription."
+                }
+            transcript = ""
             
             slots = extract_clinical_slots(transcript)
             return {
@@ -168,9 +182,15 @@ def transcribe_offline_audio(audio_bytes: bytes, filename: str = "audio.wav") ->
                 "slots": slots
             }
     except wave.Error:
-        # Fallback for raw audio streams
-        logger.info("🎙️ [Parakeet Audio Engine] Processing raw audio stream...")
-        transcript = "Patient Sunita Devi, village Rampur, BP 145/95, haemoglobin 9.4, fever and headache"
+        if not TEST_MODE:
+            return {
+                "status": "INVALID_AUDIO",
+                "engine": "not_configured",
+                "transcript": None,
+                "slots": None,
+                "message": "Audio must be recorded in a supported format and processed by the configured on-device speech model."
+            }
+        transcript = ""
         slots = extract_clinical_slots(transcript)
         return {
             "status": "success",

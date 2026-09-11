@@ -144,8 +144,8 @@ Do not make an AI copilot a primary navigation item. Clinical support belongs in
 
 ## 12. Demo and release hygiene
 
-1. Demo fixtures live outside production startup code and carry a `Demo data` badge.
-2. Test toggles, fake network state, fake delivery IDs, canned speech transcripts, and seeded patients are unavailable in release builds.
+1. Production contains no demo fixtures, seeded patients, fallback users, or fabricated clinical records. Test fixtures may run only when `SAKHICARE_TEST_MODE=true`.
+2. Test toggles, fake network state, fake delivery IDs, and canned speech transcripts are unavailable in release builds.
 3. The README, screenshots, API docs, and UI labels must match actual behaviour.
 4. The release checklist must include: offline restart, encrypted storage, sync retry, duplicate submission, unknown case `404`, role restrictions, alert failure, and no-network transport behaviour.
 5. A feature is complete only when its empty, loading, offline, failed, acknowledged, and success states are designed and tested.

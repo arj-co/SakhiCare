@@ -15,7 +15,7 @@ interface NavbarProps {
   currentTab: "queue" | "facilities" | "workers" | "protocols" | "transport" | "notifications";
   onSelectTab: (tab: "queue" | "facilities" | "workers" | "protocols" | "transport" | "notifications") => void;
   currentUser: UserProfile;
-  onChangeRole: (role: UserProfile["role"]) => void;
+  onLogout: () => void;
   criticalCount: number;
   totalCases: number;
   isLive: boolean;
@@ -26,7 +26,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
   currentUser,
-  onChangeRole,
+  onLogout,
   criticalCount,
   isLive,
   onRefresh,
@@ -115,20 +115,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw size={13} />
           </button>
 
-          {/* Role Switcher Pill */}
+          {/* Authenticated profile */}
           <div className="role-badge">
             <UserCheck size={14} color="var(--medical-teal)" />
-            <select
-              value={currentUser.role}
-              onChange={(e) => onChangeRole(e.target.value as UserProfile["role"])}
-              className="role-select"
-              title="Switch user role"
-            >
-              <option value="MEDICAL_OFFICER">Medical Officer</option>
-              <option value="SUPERVISOR">Block Supervisor</option>
-              <option value="DISPATCHER">108 Dispatcher</option>
-              <option value="ADMIN">System Admin</option>
-            </select>
+            <span>{currentUser.full_name || currentUser.username}</span>
+            <span className="role-select">{currentUser.role.replaceAll("_", " ")}</span>
+            <button className="btn btn-secondary btn-sm" onClick={onLogout}>Sign out</button>
           </div>
         </div>
       </div>

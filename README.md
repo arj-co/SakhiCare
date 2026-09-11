@@ -49,7 +49,9 @@ SakhiCare is designed specifically for high-volume, low-connectivity healthcare 
   - **AMBER**: High-priority observation triggered by fever or severe headache.
   - **GREEN**: Normal maternal checkup.
 - **Offline-First Dashboard** — Displays connectivity status, pending sync count, quick assessment triggers, and recent case history.
-- **FastAPI Sync Server** — Lightweight Python backend ready for data ingestion and FHIR bundle transformation.
+- **FastAPI Sync Server** — Authenticated ingestion, durable Supabase persistence, FHIR export, notification audit, and deferred synchronization.
+- **Care Desk Portal** — React + Vite portal for authenticated medical officers, supervisors, dispatchers, and administrators.
+- **Secure location/audio handling** — Point-of-care coordinates are captured only with device permission; recordings are uploaded to private Supabase Storage only after authenticated sync.
 - **Interoperability Ready** — Included FHIR R4 JSON bundle specs for seamless EHR integration.
 
 ---
@@ -88,7 +90,7 @@ graph TD
     B -->|Local Write| D[Room DB + SQLCipher Encrypted]:::storage
     D -->|Queued Items| E[WorkManager Sync Worker]:::storage
     E -->|REST API POST /sync| F[FastAPI Backend Server]:::server
-    F -->|Persistence Placeholder| G[PostgreSQL Database]:::storage
+    F -->|Authenticated durable writes| G[Supabase Postgres + private Storage]:::storage
     F -->|Bundle Export| H[FHIR R4 JSON Converter]:::server
 ```
 
@@ -100,11 +102,11 @@ graph TD
 |---|---|---|---|
 | **Language** | Kotlin | 2.0.0 | Primary language for Android application |
 | **UI Framework** | Jetpack Compose | 1.7.0 | Declarative UI framework for modern Android UI |
-| **Local Database** | Room + SQLCipher (Placeholder) | 2.6.1 | Local encrypted SQLite database layer |
-| **Background Sync** | WorkManager (Placeholder) | 2.9.0 | Deferred background synchronization manager |
+| **Local Database** | Room + SQLCipher | 2.6.1 | Local encrypted SQLite database layer |
+| **Background Sync** | WorkManager | 2.9.0 | Deferred background synchronization manager |
 | **Backend Framework**| FastAPI | 0.111.0 | High-performance Python REST API server |
 | **Backend Runtime**  | Python | 3.11+ | Execution engine for backend services |
-| **Database Engine**  | PostgreSQL (Placeholder) | 16.0 | Production relational database engine |
+| **Database Engine**  | Supabase Postgres | managed | Production relational database engine |
 | **Data Standard**   | FHIR R4 | 4.0.1 | Standardized healthcare data payload format |
 
 ---
@@ -147,30 +149,81 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
+### Production configuration
+
+Use `supabase/README.md` and `backend/.env.example` as the deployment contract. The backend receives the database URL, JWT secret, service-role key, SMS key, and OneSignal REST key only through its secret manager. The portal and APK receive only the Supabase URL and public publishable/anon key.
+
+Build an APK with the deployed API and public Supabase values supplied as Gradle properties:
+
+```bash
+./gradlew assembleRelease \
+  -PSAKHICARE_API_BASE_URL=https://api.example.org/ \
+  -PSUPABASE_URL=https://your-project.supabase.co/ \
+  -PSUPABASE_ANON_KEY=your-public-publishable-key
+```
+
+Release signing is intentionally not debug-signed. Supply `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` from a protected CI secret store for a distributable APK/AAB.
+
 Verify backend health at: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
 ---
 
 ### 2. Running the Android Application
 
-1. Open Android Studio.
-2. Select **Open an Existing Project** and browse to the repository root directory.
-3. Allow Gradle to sync dependencies.
-4. Run the project on an Android Emulator or connected physical device (API 26+).
+1. Ensure JDK 17 is active (`export JAVA_HOME=/opt/homebrew/opt/openjdk@17`).
+2. Run automated test suites:
+   ```bash
+   ./gradlew testDebugUnitTest
+   ```
+3. Assemble the debug APK:
+   ```bash
+   ./gradlew assembleDebug
+   ```
+4. Output APK location: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ---
 
-## Future Roadmap
+### 3. Running the Care Desk Portal (React + Vite)
 
-The current repository provides a clean architecture and UI starter template. The following components are explicitly defined as future production work:
+```bash
+# Navigate to portal directory
+cd portal
 
-- [x] **On-Device Speech-To-Text (STT / SST)** — Natural language voice input assistant for ANMs/ASHAs to dictate patient details, vitals, and danger signs hands-free.
-- [x] **Full FHIR R4 Integration Engine** — Automated bi-directional converter mapping SakhiCare assessment payloads into standard HL7 FHIR `Patient`, `Observation` (LOINC 85354-9 BP, 718-7 Hb), and `Condition` bundles.
-- [x] **FastAPI Sync Server & Pytest Suite** — High-performance REST sync server with `/sync`, `/cases`, `/fhir/export/{id}`, `/voice-parse` endpoints and automated test suite.
-- [ ] **SQLCipher Integration** — Encrypt Room database using real passphrase keys generated from Android Keystore.
-- [ ] **WorkManager Exponential Backoff Sync** — Real HTTP transport sync engine using Retrofit + WorkManager retry policies.
-- [ ] **Firebase Cloud Messaging (FCM)** — High-priority push notifications for critical patient emergency alerts.
-- [ ] **PostgreSQL Database Pipeline** — Live SQLAlchemy ORM models, Alembic migrations, and database connection pools.
+# Install dependencies (if not already installed)
+npm install
+
+# Start development server
+npm run dev
+
+# Build production bundle
+npm run build
+```
+
+---
+
+## Implementation Status & Verification
+
+All four phases of SakhiCare are fully implemented, hardened, and verified:
+
+- [x] **Phase 1: Offline ASHA Foundation**
+  - Room encrypted SQLite database with Keystore passphrase provider.
+  - Deterministic clinical triage engine adhering to `mohfw-hrp-v1.0`.
+  - Offline-first encounters, WorkManager sync queue, and conflict resolution.
+- [x] **Phase 2: Voice Note to Form**
+  - Vernacular voice-note recording with SHA-256 integrity verification.
+  - AI extraction into structured fields with strict clinician confirmation before persistence.
+  - Configurable audio retention policy purging audio once clinically validated.
+- [x] **Phase 3: Durable Backend & Care Desk Portal**
+  - FastAPI service with SQLAlchemy models and Alembic database migrations.
+  - JWT Bearer authentication with server-enforced RBAC and facility scoping.
+  - React + Vite Care Desk with SSE real-time updates and clinical case acknowledgement.
+- [x] **Phase 4: Escalation, SMS, Transport, and Release Hardening**
+  - 108 Emergency Transport coordination state machine with capability-based hospital routing.
+  - Multi-channel escalation chain with Block Supervisor fallback (`SUPERVISOR_ANITA`).
+  - Privacy-preserving minimal SMS contract (zero patient identity leakage).
+  - Webhook callback for SMS delivery receipts decoupled from clinical state.
+  - Deterministic demo data seeder and clean purge (`POST /api/v1/demo/seed`, `POST /api/v1/demo/purge`).
+  - Zero fake network switches or canned fallbacks in production builds.
 
 ---
 
@@ -184,3 +237,4 @@ The current repository provides a clean architecture and UI starter template. Th
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

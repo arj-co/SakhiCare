@@ -149,22 +149,22 @@ def generate_clinical_differential(
     differentials = []
     actions = []
 
-    sbp_parts = blood_pressure.split("/")
-    sbp = int(sbp_parts[0]) if len(sbp_parts) == 2 and sbp_parts[0].isdigit() else 120
-    dbp = int(sbp_parts[1]) if len(sbp_parts) == 2 and sbp_parts[1].isdigit() else 80
+    sbp_parts = (blood_pressure or "").split("/")
+    sbp = int(sbp_parts[0]) if len(sbp_parts) == 2 and sbp_parts[0].isdigit() else None
+    dbp = int(sbp_parts[1]) if len(sbp_parts) == 2 and sbp_parts[1].isdigit() else None
 
-    if sbp >= 160 or dbp >= 110:
+    if (sbp is not None and sbp >= 160) or (dbp is not None and dbp >= 110):
         differentials.append("1. Severe Pre-eclampsia with Imminent Eclampsia")
         differentials.append("2. HELLP Syndrome (Hemolysis, Elevated Liver Enzymes, Low Platelets)")
         actions.append("Administer IV/Oral Labetalol 100-200mg or Nifedipine 10mg retard.")
         actions.append("Initiate Magnesium Sulfate Pritchards / Zuspan regimen.")
-    elif sbp < 90 or dbp < 50:
+    elif (sbp is not None and sbp < 90) or (dbp is not None and dbp < 50):
         differentials.append("1. Obstetric Hypovolemic Shock (Occult APH/PPH)")
         differentials.append("2. Septic Shock secondary to Chorioamnionitis")
         actions.append("Rapid volume expansion with warm crystalloids (Ringer Lactate).")
         actions.append("Keep emergency uncrossmatched O-negative blood on standby.")
 
-    if haemoglobin < 7.0:
+    if haemoglobin is not None and haemoglobin < 7.0:
         differentials.append("Severe Nutritional / Microcytic Hypochromic Anemia with Hyperdynamic State")
         actions.append("Prepare 2 units of Packed Red Blood Cells (PRBC) for cross-matching.")
 

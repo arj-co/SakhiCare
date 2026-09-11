@@ -1,5 +1,8 @@
 package com.sakhicare.app.sync
 
+import android.content.Context
+import com.sakhicare.app.BuildConfig
+import com.sakhicare.app.data.preferences.OnboardingPreferences
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -22,7 +25,11 @@ data class SyncBatchRequest(
     @SerializedName("risk_level") val riskLevel: String,
     @SerializedName("risk_score") val riskScore: Int,
     @SerializedName("rule_pack_version") val rulePackVersion: String,
-    @SerializedName("created_at") val createdAt: Long
+    @SerializedName("created_at") val createdAt: Long,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("location_accuracy_m") val locationAccuracyM: Float? = null,
+    @SerializedName("location_captured_at") val locationCapturedAt: Long? = null
 )
 
 data class SyncBatchResponse(
@@ -40,6 +47,26 @@ data class AudioUploadResponse(
     @SerializedName("sha256") val sha256: String,
     @SerializedName("file_size_bytes") val fileSizeBytes: Long
 )
+
+data class SupabasePasswordLoginRequest(
+    val email: String,
+    val password: String
+)
+
+data class SupabaseSessionResponse(
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("user") val user: SupabaseUser?
+)
+
+data class SupabaseUser(@SerializedName("id") val id: String)
+
+interface SupabaseAuthService {
+    @POST("auth/v1/token?grant_type=password")
+    suspend fun passwordLogin(
+        @retrofit2.http.Header("apikey") anonKey: String,
+        @Body request: SupabasePasswordLoginRequest
+    ): Response<SupabaseSessionResponse>
+}
 
 interface SakhiCareApiService {
     @POST("/sync/batch")
@@ -61,14 +88,25 @@ interface SakhiCareApiService {
 }
 
 object SakhiCareApiClient {
-    // Default loopback URL for Android emulator / local network
-    private const val DEFAULT_BASE_URL = "http://10.0.2.2:8000"
+    private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
+    }
 
     private val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
         OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val token = appContext?.let { OnboardingPreferences(it).authAccessToken }
+                val authenticated = if (token.isNullOrBlank()) request else request.newBuilder()
+                    .header("Authorization", "Bearer $token")
+                    .build()
+                chain.proceed(authenticated)
+            }
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -77,10 +115,33 @@ object SakhiCareApiClient {
 
     val service: SakhiCareApiService by lazy {
         Retrofit.Builder()
-            .baseUrl(DEFAULT_BASE_URL)
+            .baseUrl(BuildConfig.SAKHICARE_API_BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(SakhiCareApiService::class.java)
+    }
+
+    private val supabaseAuthService: SupabaseAuthService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.SUPABASE_URL)
+            .client(OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(SupabaseAuthService::class.java)
+    }
+
+    suspend fun signInWithSupabase(email: String, password: String): Response<SupabaseSessionResponse> {
+        require(BuildConfig.SUPABASE_ANON_KEY.isNotBlank()) { "Supabase public key is not configured in this APK build" }
+        val response = supabaseAuthService.passwordLogin(
+            BuildConfig.SUPABASE_ANON_KEY,
+            SupabasePasswordLoginRequest(email = email, password = password)
+        )
+        if (response.isSuccessful) {
+            response.body()?.accessToken?.let { token ->
+                appContext?.let { OnboardingPreferences(it).authAccessToken = token }
+            }
+        }
+        return response
     }
 }

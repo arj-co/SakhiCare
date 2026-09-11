@@ -34,7 +34,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sakhicare.app.R
-import com.sakhicare.app.data.DemoConfig
 import com.sakhicare.app.data.PatientCase
 import com.sakhicare.app.data.PatientRepository
 import com.sakhicare.app.data.RiskLevel
@@ -57,8 +56,7 @@ fun DashboardScreen(
     onLanguageSelected: (AppLanguage) -> Unit,
     onSyncNowClick: () -> Unit,
     onNewAssessmentClick: () -> Unit,
-    onMyCasesClick: () -> Unit,
-    onToggleNetworkMode: (() -> Unit)? = null
+    onMyCasesClick: () -> Unit
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -169,28 +167,6 @@ fun DashboardScreen(
                             }
                         )
                     }
-                }
-            }
-        }
-
-        // ── Demo Data Indicator (Visible ONLY when demo mode enabled) ──
-        if (DemoConfig.isDemoEnabled) {
-            Surface(
-                color = Color(0xFFFFF3CD),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFEEBA)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFF856404), modifier = Modifier.size(18.dp))
-                    Text(
-                        "Demo Mode Active: Simulated records shown. Not clinical patient data.",
-                        style = MaterialTheme.typography.labelSmall.copy(color = Color(0xFF856404), fontWeight = FontWeight.Bold)
-                    )
                 }
             }
         }

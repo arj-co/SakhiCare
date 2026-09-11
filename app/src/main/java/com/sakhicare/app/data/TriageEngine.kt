@@ -22,6 +22,7 @@ data class NativeClinicalEvaluation(
 object TriageEngine {
 
     const val PROTOCOL_VERSION = "mohfw-hrp-v1.0"
+    const val RULE_PACK_VERSION = PROTOCOL_VERSION
 
     fun evaluate(
         bloodPressure: String?,

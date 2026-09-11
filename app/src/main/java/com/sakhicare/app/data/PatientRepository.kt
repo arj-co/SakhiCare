@@ -63,8 +63,30 @@ object PatientRepository {
             CoroutineScope(Dispatchers.IO).launch {
                 val db = AppDatabase.getInstance(ctx.applicationContext)
                 val repo = offlineRepository ?: OfflineCaseRepository(db)
+                val prefs = com.sakhicare.app.data.preferences.OnboardingPreferences(ctx)
+                val existingWorker = db.workerDao().getCurrentWorker()
+                val workerId = existingWorker?.id ?: if (prefs.workerPhone.isNotBlank()) "WKR-${prefs.workerPhone}" else "WKR-LOCAL"
+                val facilityId = existingWorker?.facilityId ?: prefs.facilityCode.ifBlank { "FAC-01" }
+
+                if (existingWorker == null) {
+                    db.workerDao().insertWorker(
+                        com.sakhicare.app.data.db.entities.WorkerEntity(
+                            id = workerId,
+                            name = prefs.workerName.ifBlank { "ASHA Worker" },
+                            role = prefs.workerRole.ifBlank { "ASHA" },
+                            phone = prefs.workerPhone.ifBlank { "9999999999" },
+                            facilityId = facilityId,
+                            facilityName = prefs.facilityName.ifBlank { "Primary Health Catchment" },
+                            locale = "hi-IN",
+                            status = "ACTIVE"
+                        )
+                    )
+                }
+
                 repo.saveNewAssessment(
                     patientCase = patientCase,
+                    workerId = workerId,
+                    facilityId = facilityId,
                     context = ctx,
                     audioFile = audioFile,
                     voiceTranscript = voiceTranscript,
@@ -78,6 +100,12 @@ object PatientRepository {
         val db = AppDatabase.getInstance(context.applicationContext)
         val repo = offlineRepository ?: OfflineCaseRepository(db)
         return repo.getVoiceArtifactForCase(caseId)
+    }
+
+    fun getVoiceArtifactFlow(caseId: String, context: Context): kotlinx.coroutines.flow.Flow<com.sakhicare.app.data.db.entities.VoiceArtifactEntity?> {
+        val db = AppDatabase.getInstance(context.applicationContext)
+        val repo = offlineRepository ?: OfflineCaseRepository(db)
+        return repo.getVoiceArtifactForCaseFlow(caseId)
     }
 
     fun syncAllPending(context: Context? = null) {

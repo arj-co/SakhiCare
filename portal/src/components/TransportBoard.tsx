@@ -70,10 +70,10 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
       item.status === "CONFIRMED" ? "EN_ROUTE" :
       item.status === "EN_ROUTE" ? "ARRIVED" : item.status
     );
-    setVehicleId(item.vehicle_id || "108-AMB-Rampur-09");
+    setVehicleId(item.vehicle_id || "");
     setDriverName(item.driver_name || "");
     setDriverPhone(item.driver_phone || "");
-    setDestinationFacilityName(item.destination_facility_name || "Chandanpur Community Health Centre (CHC)");
+    setDestinationFacilityName(item.destination_facility_name || "");
     setCallNotes(item.call_attempt_notes || "");
     setActionSuccess(null);
   };
@@ -365,17 +365,12 @@ export const TransportBoard: React.FC<TransportBoardProps> = ({ userRole, onSele
                       value={destinationFacilityName}
                       onChange={(e) => setDestinationFacilityName(e.target.value)}
                     >
+                      <option value="">Select a registered facility</option>
                       {facilities.map((f) => (
                         <option key={f.id} value={f.name}>
                           {f.name} ({f.type})
                         </option>
                       ))}
-                      <option value="Chandanpur Community Health Centre (CHC)">
-                        Chandanpur Community Health Centre (CHC) - Blood Bank
-                      </option>
-                      <option value="Rampur Primary Health Centre (PHC)">
-                        Rampur Primary Health Centre (PHC) - BEmOC
-                      </option>
                     </select>
                   </div>
                 </div>
