@@ -162,7 +162,7 @@ export async function login(username: string, password: string): Promise<{ acces
 }
 
 export async function loginWithSupabase(email: string, password: string): Promise<UserProfile> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || "https://sngvedrflxkwsrjwmcab.supabase.co";
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   if (!supabaseUrl || !anonKey) throw new Error("Supabase Auth is not configured for this Care Desk build");
   const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
