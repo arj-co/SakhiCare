@@ -14,7 +14,7 @@ def classify_case_with_gemini(case: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not api_key:
         return None
 
-    model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     prompt = f"""You are a maternal-health triage quality reviewer. Return JSON only.
 Review this encounter using the supplied observations. Classify risk as exactly
 RED, AMBER, or GREEN, give a 0-100 confidence, and a one-sentence rationale.
