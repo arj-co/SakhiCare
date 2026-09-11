@@ -18,6 +18,7 @@ from fhir_converter import generate_fhir_bundle
 import onesignal_service
 from triage_engine import evaluate_clinical_risk, ClinicalEvaluationResult
 from speech_engine import extract_clinical_slots, transcribe_offline_audio, normalize_spoken_numbers
+from gemini_classifier import extract_voice_with_gemini
 
 from database import init_db, get_db, SessionLocal
 from models import (
@@ -595,6 +596,7 @@ async def upload_case_audio(
         "retention_due_at": int(time.time() + 90 * 86400)
     }
     audio_artifacts_db[case_id] = artifact_meta
+    voice_review = extract_voice_with_gemini(content, file.content_type or "audio/m4a", language)
 
     # Log audit event
     audit_event = {
@@ -656,6 +658,17 @@ async def upload_case_audio(
                 occurred_at=int(time.time())
             )
             db.add(db_evt)
+            if voice_review:
+                if existing_artifact:
+                    existing_artifact.transcript = str(voice_review.get("transcript", ""))[:10000]
+                else:
+                    db_art.transcript = str(voice_review.get("transcript", ""))[:10000]
+                db.add(CaseEventModel(
+                    id=f"EVT-GEMINI-{int(time.time() * 1000)}", case_id=case_id,
+                    event_type="GEMINI_VOICE_REVIEW", actor_id="GEMINI",
+                    actor_role="AI_REVIEWER", summary="Gemini transcribed voice note and extracted intake fields",
+                    details_json=json.dumps(voice_review, ensure_ascii=False), occurred_at=int(time.time())
+                ))
             db.commit()
 
     return {
@@ -664,7 +677,8 @@ async def upload_case_audio(
         "case_id": case_id,
         "sha256": computed_sha,
         "file_size_bytes": len(content),
-        "retention_due_at": artifact_meta["retention_due_at"]
+        "retention_due_at": artifact_meta["retention_due_at"],
+        "voice_review": voice_review
     }
 
 
