@@ -10,6 +10,7 @@ from models import (
     TransportRequestModel, NotificationLogModel
 )
 from triage_engine import evaluate_clinical_risk
+from gemini_classifier import classify_case_with_gemini
 
 TEST_MODE = os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true"
 
@@ -129,6 +130,29 @@ def ingest_sync_case_batch(db: Session, payload: Dict[str, Any]) -> Dict[str, An
         created_at=int(time.time())
     )
     db.add(assessment)
+
+    # Optional Gemini second opinion. It is audited for clinician review and
+    # can never replace the deterministic triage result above.
+    gemini_result = classify_case_with_gemini({
+        "case_id": case_id,
+        "patient_name": case.patient_name,
+        "village": case.village,
+        "blood_pressure": bp,
+        "haemoglobin": hb_float,
+        "danger_signs": danger_signs,
+        "deterministic_risk": triage_res.risk_level,
+    })
+    if gemini_result:
+        db.add(CaseEventModel(
+            id=f"EVT-GEMINI-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}",
+            case_id=case_id,
+            event_type="GEMINI_RISK_REVIEW",
+            actor_id="GEMINI",
+            actor_role="AI_REVIEWER",
+            summary=f"Gemini second opinion: {gemini_result['risk_level']} ({gemini_result['confidence']}% confidence)",
+            details_json=json.dumps(gemini_result),
+            occurred_at=int(time.time())
+        ))
 
     # Append case event
     event_summary = f"Case received via sync: {triage_res.risk_level} risk ({'; '.join(triage_res.primary_factors[:2])})"

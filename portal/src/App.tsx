@@ -9,7 +9,7 @@ import { WorkerRoster } from "./components/WorkerRoster";
 import { ClinicalProtocols } from "./components/ClinicalProtocols";
 import { TransportBoard } from "./components/TransportBoard";
 import { NotificationCenter } from "./components/NotificationCenter";
-import { AlertCircle, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle, Users, ArrowUpRight, HeartPulse, LockKeyhole, Radio } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const App: React.FC = () => {
@@ -164,22 +164,45 @@ export const App: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="auth-shell">
-        <form className="auth-card" onSubmit={handleLogin}>
-          <div className="eyebrow">SAKHICARE CARE DESK</div>
-          <h1>Sign in to the clinical operations desk</h1>
-          <p>Select your authentication mode and enter credentials.</p>
+        <div className="auth-frame">
+          <section className="auth-intro" aria-label="About SakhiCare Care Desk">
+            <div className="auth-brand-lockup">
+              <span className="brand-mark"><HeartPulse size={20} strokeWidth={2.4} /></span>
+              <span className="auth-brand-name">SakhiCare</span>
+            </div>
+            <div className="eyebrow">CLINICAL OPERATIONS / 01</div>
+            <h1>Care coordination, with a human pace.</h1>
+            <p className="auth-intro-copy">
+              A focused desk for turning frontline screening into the right next action — quickly, clearly, and with dignity.
+            </p>
+            <div className="auth-principles">
+              <div><Radio size={16} /><span><strong>Live care signal</strong><small>Updates from the field as they arrive</small></span></div>
+              <div><LockKeyhole size={16} /><span><strong>Protected by design</strong><small>Role-aware access to clinical records</small></span></div>
+            </div>
+            <div className="auth-intro-footer"><span className="live-dot active" /> Operational workspace for maternal health teams <ArrowUpRight size={14} /></div>
+          </section>
 
-          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          <form className="auth-card" onSubmit={handleLogin}>
+            <div className="auth-card-heading">
+              <div>
+                <div className="eyebrow">WELCOME BACK</div>
+                <h2>Sign in to Care Desk</h2>
+              </div>
+              <span className="auth-secure-badge"><LockKeyhole size={13} /> Secure</span>
+            </div>
+            <p className="auth-card-description">Use your operator credentials to continue to the clinical workspace.</p>
+
+          <div className="auth-mode-toggle" role="tablist" aria-label="Authentication mode">
             <button
               type="button"
-              className={`btn btn-sm ${loginMode === "desk" ? "btn-primary" : "btn-secondary"}`}
+              className={`auth-mode-button ${loginMode === "desk" ? "active" : ""}`}
               onClick={() => setLoginMode("desk")}
             >
               Desk / Local Login
             </button>
             <button
               type="button"
-              className={`btn btn-sm ${loginMode === "supabase" ? "btn-primary" : "btn-secondary"}`}
+              className={`auth-mode-button ${loginMode === "supabase" ? "active" : ""}`}
               onClick={() => setLoginMode("supabase")}
             >
               Supabase Auth
@@ -207,35 +230,29 @@ export const App: React.FC = () => {
                 />
               </label>
 
-              {/* Quick Demo Login Pills */}
-              <div style={{ marginTop: "8px", marginBottom: "16px" }}>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
-                  Quick Operator Fill:
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              <div className="demo-login-block">
+                <div className="demo-login-label">Demo workspace · choose a role to pre-fill</div>
+                <div className="demo-login-options">
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    className="demo-login-option"
                     onClick={() => setDemoCreds("doctor_sharma", "DoctorPass123!")}
                   >
-                    Dr. Sharma (MO)
+                    <span>Dr. Sharma</span><small>Medical Officer</small>
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    className="demo-login-option"
                     onClick={() => setDemoCreds("dispatch_108", "DispatchPass123!")}
                   >
-                    108 Dispatcher
+                    <span>108 Dispatcher</span><small>Emergency transport</small>
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: "0.72rem", padding: "3px 8px" }}
+                    className="demo-login-option"
                     onClick={() => setDemoCreds("admin", "AdminPass123!")}
                   >
-                    Admin
+                    <span>Admin</span><small>System operations</small>
                   </button>
                 </div>
               </div>
@@ -264,10 +281,13 @@ export const App: React.FC = () => {
           )}
 
           {authError && <div className="alert alert-danger">{authError}</div>}
-          <button className="primary-button" type="submit" disabled={authLoading}>
-            {authLoading ? "Signing in…" : "Sign in securely"}
+          <button className="auth-submit" type="submit" disabled={authLoading}>
+            {authLoading ? "Signing in…" : "Continue to Care Desk"}
+            {!authLoading && <ArrowUpRight size={16} />}
           </button>
-        </form>
+          <p className="auth-card-note"><LockKeyhole size={13} /> Your access is limited to the role and facilities assigned to you.</p>
+          </form>
+        </div>
       </div>
     );
   }
@@ -281,7 +301,6 @@ export const App: React.FC = () => {
         currentUser={currentUser}
         onLogout={handleLogout}
         criticalCount={stats.red}
-        totalCases={stats.total}
         isLive={isLive}
         onRefresh={loadCases}
       />
@@ -310,12 +329,18 @@ export const App: React.FC = () => {
 
         {/* Global Summary Stats (on queue tab) */}
         {currentTab === "queue" && (
-          <div>
-            <div className="eyra-section-label">Maternal Care Infrastructure</div>
+          <div className="dashboard-overview">
+            <div className="overview-heading">
+              <div>
+                <div className="eyra-section-label">Maternal Care Infrastructure</div>
+                <p className="overview-kicker">Today’s operational pulse</p>
+              </div>
+              <span className="overview-updated"><span className="live-dot active" /> Live across the care network</span>
+            </div>
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-info">
-                  <span className="stat-label">Total Patients</span>
+                  <span className="stat-label">Active encounters</span>
                   <span className="stat-value">{stats.total}</span>
                 </div>
                 <div className="stat-icon-wrapper stat-icon-teal">
@@ -325,7 +350,7 @@ export const App: React.FC = () => {
 
               <div className="stat-card">
                 <div className="stat-info">
-                  <span className="stat-label">Critical Emergency</span>
+                  <span className="stat-label">Critical now</span>
                   <span className="stat-value" style={{ color: "var(--red-primary)" }}>{stats.red}</span>
                 </div>
                 <div className="stat-icon-wrapper stat-icon-red">
@@ -335,7 +360,7 @@ export const App: React.FC = () => {
 
               <div className="stat-card">
                 <div className="stat-info">
-                  <span className="stat-label">Moderate High-Risk</span>
+                  <span className="stat-label">Needs review</span>
                   <span className="stat-value" style={{ color: "var(--amber-primary)" }}>{stats.amber}</span>
                 </div>
                 <div className="stat-icon-wrapper stat-icon-amber">
@@ -345,7 +370,7 @@ export const App: React.FC = () => {
 
               <div className="stat-card">
                 <div className="stat-info">
-                  <span className="stat-label">Routine ANC Care</span>
+                  <span className="stat-label">Routine follow-up</span>
                   <span className="stat-value" style={{ color: "var(--medical-teal)" }}>{stats.green}</span>
                 </div>
                 <div className="stat-icon-wrapper stat-icon-green">

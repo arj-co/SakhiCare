@@ -56,7 +56,9 @@ android {
         buildConfig = true
     }
     val configuredApiBaseUrl = providers.gradleProperty("SAKHICARE_API_BASE_URL").orNull ?: "https://configure-sakhicare-api.invalid/"
-    val configuredSupabaseUrl = providers.gradleProperty("SUPABASE_URL").orNull ?: "https://configure-supabase.invalid/"
+    // Public project URL for the shared SakhiCare Supabase project. The anon
+    // key and API base are still supplied per build/deployment.
+    val configuredSupabaseUrl = providers.gradleProperty("SUPABASE_URL").orNull ?: "https://sngvedrflxkwsrjwmcab.supabase.co/"
     val configuredSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY").orNull ?: ""
     buildTypes.all {
         buildConfigField("String", "SAKHICARE_API_BASE_URL", "\"${configuredApiBaseUrl.trimEnd('/')}/\"")

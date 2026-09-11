@@ -25,6 +25,7 @@ interface UrgentQueueProps {
 export const UrgentQueue: React.FC<UrgentQueueProps> = ({
   cases,
   loading,
+  onRefresh,
   onSelectCase,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,6 +75,10 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
             Community maternal health encounters captured offline by ASHA workers. Evaluated deterministically to ensure timely, dignified clinical care.
           </p>
         </div>
+        <button onClick={onRefresh} className="btn btn-secondary btn-sm queue-refresh-button">
+          <Activity size={13} />
+          <span>Refresh queue</span>
+        </button>
       </div>
 
       {/* Toolbar: Search & Filter Pills */}
@@ -135,6 +140,7 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
             <option value="DISPATCHED">108 Ambulance Dispatched</option>
           </select>
         </div>
+        <div className="queue-result-count">Showing <strong>{filteredCases.length}</strong> of {cases.length} encounters</div>
       </div>
 
       {/* Patient Cards List */}
@@ -160,7 +166,7 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
             const isSevereHb = c.assessment?.haemoglobin && c.assessment.haemoglobin < 7.0;
             const dangerSigns = c.assessment?.danger_signs || {};
             const activeDangerSigns = Object.entries(dangerSigns)
-              .filter(([_, active]) => Boolean(active))
+              .filter((entry) => Boolean(entry[1]))
               .map(([sign]) => sign.replace(/_/g, " "));
             const hasAudio = Boolean(c.audio_artifact);
 
@@ -169,6 +175,12 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
                 key={c.case_id || c.patient_id}
                 className={`case-card ${risk === "RED" ? "card-red" : (risk === "AMBER" ? "card-amber" : "card-green")}`}
                 onClick={() => onSelectCase(c)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") onSelectCase(c);
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Review ${c.patient_name}, ${risk} triage`}
                 style={{ cursor: "pointer" }}
               >
                 {/* Header: Patient Name in DM Serif Display + Triage Urgency Badge */}

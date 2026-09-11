@@ -88,6 +88,8 @@ class OutboxSyncWorker(
                         }
                     } else {
                         outboxDao.recordAttemptResult(item.id, "FAILED", "Audio file not found on device storage")
+                        database.voiceArtifactDao().updateUploadStatus(artifactId, "FAILED")
+                        anyFailed = true
                     }
                 } else {
                     caseDao.updateSyncStatus(item.caseId, "UPLOADING")
@@ -182,7 +184,7 @@ class OutboxSyncWorker(
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 syncRequest
             )
         }

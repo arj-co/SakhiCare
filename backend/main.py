@@ -44,7 +44,7 @@ import supabase_storage
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 TEST_MODE = os.getenv("SAKHICARE_TEST_MODE", "false").lower() == "true"
-CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if origin.strip()]
+CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5175").split(",") if origin.strip()]
 if APP_ENV == "production" and (not CORS_ORIGINS or any("localhost" in origin or "127.0.0.1" in origin for origin in CORS_ORIGINS)):
     raise RuntimeError("Production requires explicit non-localhost CORS_ORIGINS")
 if APP_ENV == "production":
