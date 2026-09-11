@@ -11,6 +11,8 @@ import {
   LogOut,
   HeartPulse,
 } from "lucide-react";
+import type { PortalLanguage } from "../i18n";
+import { portalCopy } from "../i18n";
 
 interface NavbarProps {
   currentTab: "queue" | "facilities" | "workers" | "protocols" | "transport" | "notifications";
@@ -20,6 +22,8 @@ interface NavbarProps {
   criticalCount: number;
   isLive: boolean;
   onRefresh: () => void;
+  language: PortalLanguage;
+  onLanguageChange: (language: PortalLanguage) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,7 +34,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   criticalCount,
   isLive,
   onRefresh,
+  language,
+  onLanguageChange,
 }) => {
+  const t = portalCopy[language];
   return (
     <header className="navbar">
       <div className="navbar-top">
@@ -43,8 +50,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="nav-right">
           <div className="live-indicator">
             <span className={`live-dot ${isLive ? "active" : "syncing"}`}></span>
-            <span>{isLive ? "Live sync" : "Connecting"}</span>
+            <span>{isLive ? t.live : t.connecting}</span>
           </div>
+          <select className="language-select" value={language} onChange={(e) => onLanguageChange(e.target.value as PortalLanguage)} aria-label="Language"><option value="en">EN · English</option><option value="hi">हि · हिन्दी</option><option value="mr">म · मराठी</option></select>
 
           <button
             className="icon-refresh-btn"
@@ -70,13 +78,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <div className="navbar-nav">
         <nav className="nav-links" aria-label="Workspace navigation">
-          <span className="nav-group-label">Workspace</span>
+          <span className="nav-group-label">{t.workspace}</span>
           <button
             className={`nav-btn ${currentTab === "queue" ? "active" : ""}`}
             onClick={() => onSelectTab("queue")}
           >
             <ShieldAlert size={15} />
-            <span>Patient queue</span>
+            <span>{t.queue}</span>
             {criticalCount > 0 && (
               <span className="nav-badge-red">
                 {criticalCount}
@@ -89,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab("transport")}
           >
             <Truck size={15} />
-            <span>108 transport</span>
+            <span>{t.transport}</span>
           </button>
 
           <button
@@ -97,18 +105,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab("notifications")}
           >
             <Bell size={15} />
-            <span>Notifications</span>
+            <span>{t.notifications}</span>
           </button>
         </nav>
 
         <nav className="nav-links nav-links-admin" aria-label="Directory and guidance navigation">
-          <span className="nav-group-label">Directory &amp; guidance</span>
+          <span className="nav-group-label">{t.directory}</span>
           <button
             className={`nav-btn ${currentTab === "facilities" ? "active" : ""}`}
             onClick={() => onSelectTab("facilities")}
           >
             <Hospital size={15} />
-            <span>Facilities</span>
+            <span>{t.facilities}</span>
           </button>
 
           <button
@@ -116,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab("workers")}
           >
             <Users size={15} />
-            <span>ASHA workers</span>
+            <span>{t.workers}</span>
           </button>
 
           <button
@@ -124,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectTab("protocols")}
           >
             <BookOpen size={15} />
-            <span>Protocols</span>
+            <span>{t.protocols}</span>
           </button>
         </nav>
         <div className="nav-purpose"><span className="nav-purpose-dot" /> Triage workspace</div>

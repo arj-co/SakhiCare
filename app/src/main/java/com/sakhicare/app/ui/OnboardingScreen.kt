@@ -148,6 +148,14 @@ fun OnboardingScreen(
                             )
                         )
 
+                        Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = SurfaceWhite), border = CardDefaults.outlinedCardBorder()) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("What SakhiCare helps you do", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Neutral900))
+                                Text("• Record pregnancy details safely, even without internet\n• Capture a voice note in your local language\n• Get on-device danger-sign guidance\n• Send the complete case, voice note, and Gemini review when online", style = MaterialTheme.typography.bodyMedium.copy(color = Neutral700))
+                                Text("Your data stays on this protected phone until a connection is available.", style = MaterialTheme.typography.bodySmall.copy(color = PrimaryDark, fontWeight = FontWeight.SemiBold))
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
 
                         val languages = listOf(

@@ -5,6 +5,8 @@
             Deep Stone Ink (#1C1917, #525252), DM Serif Display & DM Sans
    ========================================================================== */
 
+.language-select { border: 1px solid var(--border-subtle); background: var(--surface-white); color: var(--text-primary); border-radius: 8px; padding: 7px 8px; font: inherit; font-size: 12px; }
+
 :root {
   /* Eyra Color Tokens */
   --bg-alternate: #F7F4EF;

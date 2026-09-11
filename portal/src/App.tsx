@@ -10,6 +10,7 @@ import { ClinicalProtocols } from "./components/ClinicalProtocols";
 import { TransportBoard } from "./components/TransportBoard";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { AlertCircle, AlertTriangle, CheckCircle, Users, ArrowUpRight, HeartPulse, LockKeyhole, Radio } from "lucide-react";
+import type { PortalLanguage } from "./i18n";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const App: React.FC = () => {
@@ -26,6 +27,8 @@ export const App: React.FC = () => {
   const [authPassword, setAuthPassword] = useState("DoctorPass123!");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [language, setLanguage] = useState<PortalLanguage>(() => (localStorage.getItem("sakhicare-language") as PortalLanguage) || "en");
+  const handleLanguageChange = (next: PortalLanguage) => { setLanguage(next); localStorage.setItem("sakhicare-language", next); };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -303,6 +306,8 @@ export const App: React.FC = () => {
         criticalCount={stats.red}
         isLive={isLive}
         onRefresh={loadCases}
+        language={language}
+        onLanguageChange={handleLanguageChange}
       />
 
       <main className="main-content">
