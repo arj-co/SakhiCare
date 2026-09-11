@@ -14,7 +14,7 @@ def classify_case_with_gemini(case: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not api_key:
         return None
 
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     prompt = f"""You are a maternal-health triage quality reviewer. Return JSON only.
 Review this encounter using the supplied observations. Classify risk as exactly
 RED, AMBER, or GREEN, give a 0-100 confidence, and a one-sentence rationale.
@@ -24,14 +24,23 @@ This is a second opinion; deterministic clinical rules remain authoritative.
 Encounter: {json.dumps(case, ensure_ascii=False)}
 JSON schema: {{"risk_level":"RED|AMBER|GREEN","confidence":0,"rationale":"..."}}"""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json"},
+    }).encode("utf-8")
     request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
             data = json.loads(response.read().decode("utf-8"))
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         text = text.replace("```json", "").replace("```", "").strip()
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            start, end = text.find("{"), text.rfind("}")
+            if start < 0 or end <= start:
+                return None
+            result = json.loads(text[start:end + 1])
         if result.get("risk_level") not in {"RED", "AMBER", "GREEN"}:
             return None
         return {

@@ -55,14 +55,7 @@ class NetworkMonitor(private val context: Context) {
 
         connectivityManager.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                val wasOffline = previousState == false
-                previousState = true
-                _isConnected.value = true
-                onConnectionChanged?.invoke(true)
-
-                if (wasOffline) {
-                    showOnlineNotification()
-                }
+                updateConnectionState(network, onConnectionChanged)
             }
 
             override fun onLost(network: Network) {
@@ -70,7 +63,24 @@ class NetworkMonitor(private val context: Context) {
                 _isConnected.value = false
                 onConnectionChanged?.invoke(false)
             }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                updateConnectionState(network, onConnectionChanged)
+            }
         })
+    }
+
+    private fun updateConnectionState(network: Network, onConnectionChanged: ((Boolean) -> Unit)?) {
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        val connected = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        val changed = previousState != connected
+        previousState = connected
+        _isConnected.value = connected
+        if (changed) {
+            onConnectionChanged?.invoke(connected)
+            if (connected) showOnlineNotification()
+        }
     }
 
     private fun createNotificationChannel() {

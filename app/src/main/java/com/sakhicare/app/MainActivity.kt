@@ -106,7 +106,9 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
 
     // Start network callback
     LaunchedEffect(networkMonitor) {
-        networkMonitor?.startMonitoring()
+        networkMonitor?.startMonitoring { connected ->
+            if (connected) PatientRepository.syncAllPending(context)
+        }
     }
 
     if (prefs.isOnboardingCompleted && !isUnlocked) {

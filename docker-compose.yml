@@ -20,7 +20,7 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       - SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET:-sakhicare-audio}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-flash-latest}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:5175}
       - PORT=8000
     restart: unless-stopped
