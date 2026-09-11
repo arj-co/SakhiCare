@@ -8,7 +8,8 @@ import {
   UserCheck,
   Truck,
   Bell,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from "lucide-react";
 
 interface NavbarProps {
@@ -34,15 +35,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        {/* Eyra Brand Header */}
+        {/* Brand Header */}
         <div className="brand-section" onClick={() => onSelectTab("queue")}>
-          <div className="flex items-center gap-2">
-            <span className="brand-title">SakhiCare</span>
-            <span className="brand-badge">Care Desk</span>
-          </div>
+          <span className="brand-title">SakhiCare</span>
+          <span className="brand-badge">Care Desk</span>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Links */}
         <nav className="nav-links">
           <button
             className={`nav-btn ${currentTab === "queue" ? "active" : ""}`}
@@ -51,7 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ShieldAlert size={15} />
             <span>Patients Queue</span>
             {criticalCount > 0 && (
-              <span className="badge badge-red" style={{ padding: "1px 6px", fontSize: "0.7rem" }}>
+              <span className="nav-badge-red">
                 {criticalCount}
               </span>
             )}
@@ -98,29 +97,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Status & Role Controls */}
+        {/* Status & Profile Controls */}
         <div className="nav-right">
-          {/* Eyra-style Live Status Indicator */}
           <div className="live-indicator">
-            <span className="live-dot"></span>
-            <span>{isLive ? "Live Sync: Ready" : "Syncing..."}</span>
+            <span className={`live-dot ${isLive ? "active" : "syncing"}`}></span>
+            <span>{isLive ? "Live Sync" : "Syncing"}</span>
           </div>
 
           <button
-            className="btn btn-secondary btn-sm"
+            className="icon-refresh-btn"
             onClick={onRefresh}
-            title="Refresh active patient records"
-            style={{ padding: "6px 12px" }}
+            title="Refresh active records"
           >
             <RefreshCw size={13} />
           </button>
 
-          {/* Authenticated profile */}
-          <div className="role-badge">
-            <UserCheck size={14} color="var(--medical-teal)" />
-            <span>{currentUser.full_name || currentUser.username}</span>
-            <span className="role-select">{currentUser.role.replaceAll("_", " ")}</span>
-            <button className="btn btn-secondary btn-sm" onClick={onLogout}>Sign out</button>
+          <div className="user-profile-pill">
+            <UserCheck size={14} className="user-icon" />
+            <span className="user-name">{currentUser.full_name || currentUser.username}</span>
+            <span className="user-role-tag">{currentUser.role.replaceAll("_", " ")}</span>
+            <button className="logout-icon-btn" onClick={onLogout} title="Sign Out">
+              <LogOut size={13} />
+            </button>
           </div>
         </div>
       </div>
