@@ -12,8 +12,8 @@ android {
         applicationId = "com.sakhicare.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -59,7 +59,8 @@ android {
     // Public project URL for the shared SakhiCare Supabase project. The anon
     // key and API base are still supplied per build/deployment.
     val configuredSupabaseUrl = providers.gradleProperty("SUPABASE_URL").orNull ?: "https://sngvedrflxkwsrjwmcab.supabase.co/"
-    val configuredSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY").orNull ?: ""
+    // Publishable key is safe for the APK; service-role secrets stay on the API.
+    val configuredSupabaseAnonKey = providers.gradleProperty("SUPABASE_ANON_KEY").orNull ?: "sb_publishable_B-1FqIm7FsQpkCxjvvXrbw_h_QBAMtC"
     buildTypes.all {
         buildConfigField("String", "SAKHICARE_API_BASE_URL", "\"${configuredApiBaseUrl.trimEnd('/')}/\"")
         buildConfigField("String", "SUPABASE_URL", "\"${configuredSupabaseUrl.trimEnd('/')}/\"")
