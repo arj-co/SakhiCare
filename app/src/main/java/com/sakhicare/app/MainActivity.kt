@@ -152,7 +152,7 @@ fun SakhiCareApp(networkMonitor: NetworkMonitor? = null) {
                     greenCount = PatientRepository.getGreenRiskCount(),
                     currentLanguage = currentLanguage,
                     onLanguageSelected = { currentLanguage = it },
-                    onSyncNowClick = { PatientRepository.syncAllPending(context) },
+                    onSyncNowClick = { PatientRepository.syncAllPending(context, force = true) },
                     onNewAssessmentClick = { currentScreen = Screen.NewAssessment },
                     onMyCasesClick = { currentScreen = Screen.MyCases }
                 )

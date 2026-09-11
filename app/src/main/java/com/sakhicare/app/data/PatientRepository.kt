@@ -108,9 +108,9 @@ object PatientRepository {
         return repo.getVoiceArtifactForCaseFlow(caseId)
     }
 
-    fun syncAllPending(context: Context? = null) {
+    fun syncAllPending(context: Context? = null, force: Boolean = false) {
         context?.let {
-            OutboxSyncWorker.enqueueSync(it)
+            OutboxSyncWorker.enqueueSync(it, force = force)
         }
     }
 

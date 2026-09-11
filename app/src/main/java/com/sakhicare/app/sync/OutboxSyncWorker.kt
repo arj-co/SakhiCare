@@ -167,7 +167,7 @@ class OutboxSyncWorker(
     companion object {
         const val WORK_NAME = "SakhiCareOutboxSyncWork"
 
-        fun enqueueSync(context: Context) {
+        fun enqueueSync(context: Context, force: Boolean = false) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
@@ -182,7 +182,9 @@ class OutboxSyncWorker(
                 .addTag(WORK_NAME)
                 .build()
 
-            WorkManager.getInstance(context).enqueueUniqueWork(
+            val workManager = WorkManager.getInstance(context)
+            if (force) workManager.cancelUniqueWork(WORK_NAME)
+            workManager.enqueueUniqueWork(
                 WORK_NAME,
                 ExistingWorkPolicy.KEEP,
                 syncRequest
