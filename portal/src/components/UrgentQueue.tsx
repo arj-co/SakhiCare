@@ -3,16 +3,16 @@ import type { PregnancyCase } from "../api";
 import { 
   AlertOctagon, 
   AlertTriangle, 
-  CheckCircle2, 
+  CheckCircle, 
   Clock, 
   MapPin, 
   Mic, 
   Truck, 
   Search, 
-  RefreshCw, 
   ChevronRight, 
-  FileCheck,
-  Stethoscope
+  Stethoscope,
+  Activity,
+  User
 } from "lucide-react";
 
 interface UrgentQueueProps {
@@ -25,7 +25,6 @@ interface UrgentQueueProps {
 export const UrgentQueue: React.FC<UrgentQueueProps> = ({
   cases,
   loading,
-  onRefresh,
   onSelectCase,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,25 +41,6 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;
   };
-
-  // Compute KPI metrics
-  const stats = useMemo(() => {
-    let red = 0;
-    let amber = 0;
-    let green = 0;
-    let dispatched = 0;
-
-    cases.forEach((c) => {
-      const risk = c.assessment?.risk_level || "GREEN";
-      if (risk === "RED") red++;
-      else if (risk === "AMBER") amber++;
-      else green++;
-
-      if (c.ambulance_status) dispatched++;
-    });
-
-    return { total: cases.length, red, amber, green, dispatched };
-  }, [cases]);
 
   // Filtered cases
   const filteredCases = useMemo(() => {
@@ -86,436 +66,234 @@ export const UrgentQueue: React.FC<UrgentQueueProps> = ({
   }, [cases, riskFilter, statusFilter, searchQuery]);
 
   return (
-    <div className="section-container">
-      
-      {/* Section Header */}
-      <div className="header-row">
+    <div>
+      {/* Header and Toolbar */}
+      <div className="page-title-row">
         <div>
-          <div className="technical-label" style={{ marginBottom: "4px" }}>
-            <span>01 / TRIAGE QUEUE · ACTIVE CLINICAL CASENOTES</span>
-          </div>
-          <h2 className="title-primary">
-            Frontline Maternal Danger-Sign <span className="editorial-italic">Screening Queue</span>
-          </h2>
-          <p className="subtitle">
-            Point-of-care encounters synced from offline ASHA workers. Ordered deterministically by MoHFW clinical risk severity.
+          <h1 className="page-title">Maternal Screening & Triage Queue</h1>
+          <p className="page-subtitle">
+            Point-of-care encounters synced from frontline ASHA tablets. Evaluated deterministically under MoHFW guidelines.
           </p>
         </div>
+      </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      {/* Toolbar: Search, Risk Filters, Status */}
+      <div className="toolbar">
+        {/* Search Input */}
+        <div className="search-input-wrapper">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by mother's name, village, or ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Triage Risk Filter Pills */}
+        <div className="filter-group">
           <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="btn-outline"
-            style={{ fontSize: "0.8rem", padding: "7px 16px" }}
+            className={`filter-pill ${riskFilter === "ALL" ? "active" : ""}`}
+            onClick={() => setRiskFilter("ALL")}
           >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-            <span>Sync Live Queue</span>
+            All Cases ({cases.length})
+          </button>
+          <button
+            className={`filter-pill ${riskFilter === "RED" ? "active-red" : ""}`}
+            onClick={() => setRiskFilter("RED")}
+          >
+            <AlertOctagon size={13} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+            Critical RED ({cases.filter((c) => c.assessment?.risk_level === "RED").length})
+          </button>
+          <button
+            className={`filter-pill ${riskFilter === "AMBER" ? "active-amber" : ""}`}
+            onClick={() => setRiskFilter("AMBER")}
+          >
+            <AlertTriangle size={13} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+            Moderate AMBER ({cases.filter((c) => c.assessment?.risk_level === "AMBER").length})
+          </button>
+          <button
+            className={`filter-pill ${riskFilter === "GREEN" ? "active-green" : ""}`}
+            onClick={() => setRiskFilter("GREEN")}
+          >
+            <CheckCircle size={13} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+            Routine GREEN ({cases.filter((c) => c.assessment?.risk_level === "GREEN").length})
           </button>
         </div>
-      </div>
 
-      {/* KPI Metric Summary Row */}
-      <div className="kpi-grid">
-        
-        {/* Critical RED Cases */}
-        <div className="kpi-card border-red">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span className="kpi-label" style={{ color: "var(--coral-dark)" }}>
-              Critical Emergencies
-            </span>
-            <AlertOctagon size={16} color="var(--coral-dark)" />
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "8px" }}>
-            <span className="kpi-value text-red">
-              {stats.red}
-            </span>
-            <span style={{ fontSize: "0.75rem", color: "var(--coral-dark)", fontWeight: 500 }}>
-              Immediate 108 transfer indicated
-            </span>
-          </div>
-        </div>
-
-        {/* Moderate AMBER Cases */}
-        <div className="kpi-card border-amber">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span className="kpi-label" style={{ color: "var(--amber-dark)" }}>
-              Moderate High-Risk
-            </span>
-            <AlertTriangle size={16} color="var(--amber-dark)" />
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "8px" }}>
-            <span className="kpi-value text-amber">
-              {stats.amber}
-            </span>
-            <span style={{ fontSize: "0.75rem", color: "var(--amber-dark)", fontWeight: 500 }}>
-              PHC Doctor review within 24h
-            </span>
-          </div>
-        </div>
-
-        {/* Normal GREEN Cases */}
-        <div className="kpi-card border-green">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span className="kpi-label" style={{ color: "var(--seafoam-dark)" }}>
-              Routine ANC Care
-            </span>
-            <CheckCircle2 size={16} color="var(--seafoam-dark)" />
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "8px" }}>
-            <span className="kpi-value text-green">
-              {stats.green}
-            </span>
-            <span style={{ fontSize: "0.75rem", color: "var(--seafoam-dark)", fontWeight: 500 }}>
-              Stable / Routine ANC monitoring
-            </span>
-          </div>
-        </div>
-
-        {/* 108 Emergency Transport */}
-        <div className="kpi-card border-blue">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span className="kpi-label" style={{ color: "var(--navy-deep)" }}>
-              108 Transports
-            </span>
-            <Truck size={16} color="var(--navy-deep)" />
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginTop: "8px" }}>
-            <span className="kpi-value text-blue">
-              {stats.dispatched}
-            </span>
-            <span style={{ fontSize: "0.75rem", color: "var(--navy-deep)", fontWeight: 500 }}>
-              Active patient transfers
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Filter & Controls Bar */}
-      <div style={{ 
-        background: "var(--panel-white)", 
-        border: "1px solid var(--rule-muted)", 
-        borderRadius: "var(--radius-lg)", 
-        padding: "16px 20px", 
-        marginBottom: "20px",
-        boxShadow: "var(--shadow-sm)"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
-          
-          {/* Search Field */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: "1 1 280px", position: "relative" }}>
-            <Search size={16} color="var(--text-muted)" style={{ position: "absolute", left: "12px" }} />
-            <input
-              type="text"
-              placeholder="Search by mother's name, village, case ID, or ASHA worker..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: "100%", paddingLeft: "36px", fontSize: "0.85rem" }}
-            />
-          </div>
-
-          {/* Risk Level Filter Pills */}
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginRight: "4px", fontFamily: "var(--font-mono)" }}>TRIAGE:</span>
-            <button
-              onClick={() => setRiskFilter("ALL")}
-              style={{
-                padding: "5px 12px",
-                borderRadius: "var(--radius-pill)",
-                border: "1px solid var(--rule-muted)",
-                background: riskFilter === "ALL" ? "var(--navy-deep)" : "transparent",
-                color: riskFilter === "ALL" ? "#FFFFFF" : "var(--navy-deep)",
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                cursor: "pointer"
-              }}
-            >
-              All ({cases.length})
-            </button>
-            <button
-              onClick={() => setRiskFilter("RED")}
-              style={{
-                padding: "5px 12px",
-                borderRadius: "var(--radius-pill)",
-                border: "1px solid var(--risk-red-border)",
-                background: riskFilter === "RED" ? "var(--coral-dark)" : "var(--coral-bg)",
-                color: riskFilter === "RED" ? "#FFFFFF" : "var(--coral-dark)",
-                fontWeight: 700,
-                fontSize: "0.75rem",
-                cursor: "pointer"
-              }}
-            >
-              RED ({stats.red})
-            </button>
-            <button
-              onClick={() => setRiskFilter("AMBER")}
-              style={{
-                padding: "5px 12px",
-                borderRadius: "var(--radius-pill)",
-                border: "1px solid var(--risk-amber-border)",
-                background: riskFilter === "AMBER" ? "var(--amber-dark)" : "var(--amber-bg)",
-                color: riskFilter === "AMBER" ? "#FFFFFF" : "var(--amber-dark)",
-                fontWeight: 700,
-                fontSize: "0.75rem",
-                cursor: "pointer"
-              }}
-            >
-              AMBER ({stats.amber})
-            </button>
-            <button
-              onClick={() => setRiskFilter("GREEN")}
-              style={{
-                padding: "5px 12px",
-                borderRadius: "var(--radius-pill)",
-                border: "1px solid var(--risk-green-border)",
-                background: riskFilter === "GREEN" ? "var(--seafoam-dark)" : "var(--seafoam-bg)",
-                color: riskFilter === "GREEN" ? "#FFFFFF" : "var(--seafoam-dark)",
-                fontWeight: 700,
-                fontSize: "0.75rem",
-                cursor: "pointer"
-              }}
-            >
-              GREEN ({stats.green})
-            </button>
-          </div>
-
-          {/* Action Status Dropdown */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ padding: "6px 14px", fontSize: "0.8rem", borderRadius: "var(--radius-pill)" }}
-            >
-              <option value="ALL">All Coordination States</option>
-              <option value="PENDING">Pending Clinical Review</option>
-              <option value="ACKNOWLEDGED">Doctor Advisory Issued</option>
-              <option value="DISPATCHED">108 Transport Active</option>
-            </select>
-          </div>
-
+        {/* Coordination Status Filter */}
+        <div>
+          <select
+            className="form-control"
+            style={{ width: "auto", fontSize: "0.8125rem", padding: "6px 12px" }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="PENDING">Pending Doctor Review</option>
+            <option value="ACKNOWLEDGED">Advisory Issued</option>
+            <option value="DISPATCHED">108 Ambulance Dispatched</option>
+          </select>
         </div>
       </div>
 
       {/* Cases List */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {filteredCases.length === 0 ? (
-          <div className="empty-state">
-            <FileCheck size={42} color="var(--text-muted)" style={{ margin: "0 auto 12px auto" }} />
-            <h3 style={{ fontSize: "1.1rem", color: "var(--text-navy)", marginBottom: "6px", fontWeight: 500 }}>No Cases Found</h3>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-              There are no patient encounters matching the selected filters.
-            </p>
-          </div>
-        ) : (
-          filteredCases.map((c) => {
+      {loading ? (
+        <div className="empty-state">
+          <Activity size={36} className="empty-state-icon" style={{ animation: "pulse-dot 1.5s infinite" }} />
+          <h3>Loading Triage Queue...</h3>
+          <p>Syncing cases from SQLite encrypted local storage...</p>
+        </div>
+      ) : filteredCases.length === 0 ? (
+        <div className="empty-state" style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-lg)" }}>
+          <User size={40} className="empty-state-icon" />
+          <h3>No matching cases</h3>
+          <p>No maternal screening cases matched the selected search or risk filters.</p>
+        </div>
+      ) : (
+        <div className="case-grid">
+          {filteredCases.map((c) => {
             const risk = c.assessment?.risk_level || "GREEN";
             const bp = c.assessment?.blood_pressure || "—";
             const hb = c.assessment?.haemoglobin ? `${c.assessment.haemoglobin} g/dL` : "—";
             const isSevereBp = bp.includes("160") || bp.includes("165") || bp.includes("170") || bp.includes("110");
             const isSevereHb = c.assessment?.haemoglobin && c.assessment.haemoglobin < 7.0;
             const dangerSigns = c.assessment?.danger_signs || {};
-            const dangerCount = Object.values(dangerSigns).filter(Boolean).length;
-            const hasAudio = !!c.audio_artifact;
+            const activeDangerSigns = Object.entries(dangerSigns)
+              .filter(([_, active]) => Boolean(active))
+              .map(([sign]) => sign.replace(/_/g, " "));
+            const hasAudio = Boolean(c.audio_artifact);
 
             return (
               <div
                 key={c.case_id || c.patient_id}
+                className={`case-card ${risk === "RED" ? "card-red" : (risk === "AMBER" ? "card-amber" : "card-green")}`}
                 onClick={() => onSelectCase(c)}
-                style={{
-                  padding: "20px 24px",
-                  cursor: "pointer",
-                  transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                  borderRadius: "var(--radius-lg)",
-                  background: "var(--panel-white)",
-                  border: "1px solid var(--rule-muted)",
-                  borderLeft: risk === "RED" 
-                    ? "5px solid var(--coral-accent)" 
-                    : (risk === "AMBER" ? "5px solid var(--amber-accent)" : "5px solid var(--seafoam-dark)"),
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "16px",
-                  flexWrap: "wrap",
-                  boxShadow: "var(--shadow-sm)"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "var(--shadow-md)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "none";
-                  e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-                }}
+                style={{ cursor: "pointer" }}
               >
-                {/* Left: Triage Badge & Patient Basic Info */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", flex: "1 1 320px" }}>
-                  
-                  {/* Triage Urgency Indicator Pill */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-                    <span className={risk === "RED" ? "badge-red" : (risk === "AMBER" ? "badge-amber" : "badge-green")} style={{ minWidth: "64px", justifyContent: "center" }}>
-                      {risk}
+                {/* Card Header: Patient Identity & Triage Badge */}
+                <div className="case-card-header">
+                  <div className="patient-identity">
+                    <span className="patient-name">{c.patient_name}</span>
+                    <span className="case-id-code">{c.case_id || c.patient_id}</span>
+                    <span className={`badge ${risk === "RED" ? "badge-red" : (risk === "AMBER" ? "badge-amber" : "badge-green")}`}>
+                      {risk === "RED" ? <AlertOctagon size={13} /> : (risk === "AMBER" ? <AlertTriangle size={13} /> : <CheckCircle size={13} />)}
+                      {risk} TRIAGE
                     </span>
-                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <Clock size={11} />
+                    {c.is_demo && (
+                      <span className="badge badge-gray">DEMO</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Clock size={13} />
                       {formatTimeElapsed(c.created_at)}
                     </span>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectCase(c);
+                      }}
+                    >
+                      <span>Review Case</span>
+                      <ChevronRight size={14} />
+                    </button>
                   </div>
-
-                  {/* Patient Name, Age, Gestation, Village */}
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                      <h3 style={{ fontSize: "1.15rem", fontWeight: 600, color: "var(--navy-deep)", margin: 0 }}>
-                        {c.patient_name}
-                      </h3>
-                      <span className="mono-badge">
-                        {c.case_id || c.patient_id}
-                      </span>
-                      {c.is_demo && (
-                        <span style={{ fontSize: "0.65rem", background: "var(--panel-pale)", color: "var(--navy-deep)", border: "1px solid var(--rule-muted)", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                          DEMO
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "14px", marginTop: "6px", fontSize: "0.825rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--text-body)" }}>
-                        <MapPin size={13} color="var(--navy-deep)" />
-                        <strong>{c.village}</strong>
-                      </span>
-                      {c.age_years && (
-                        <span>Age: {c.age_years}y</span>
-                      )}
-                      {c.gestational_age_weeks && (
-                        <span>Gestation: <strong>{c.gestational_age_weeks}w</strong></span>
-                      )}
-                      {c.gravida !== null && c.gravida !== undefined && (
-                        <span>G{c.gravida}P{c.para ?? 0}</span>
-                      )}
-                    </div>
-
-                    {c.travel_constraints && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--amber-dark)", marginTop: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span>⚠️ Access: {c.travel_constraints}</span>
-                      </div>
-                    )}
-                  </div>
-
                 </div>
 
-                {/* Middle: Clinical Metrics & Danger Signs */}
-                <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
-                  
-                  {/* BP Pill */}
-                  <div style={{
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-md)",
-                    background: isSevereBp ? "var(--coral-bg)" : "var(--panel-pale)",
-                    border: isSevereBp ? "1px solid rgba(226, 123, 112, 0.5)" : "1px solid var(--rule-muted)",
-                    textAlign: "center"
-                  }}>
-                    <span style={{ fontSize: "0.625rem", color: "var(--text-muted)", display: "block", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Blood Pressure</span>
-                    <strong style={{ fontSize: "0.95rem", color: isSevereBp ? "var(--coral-dark)" : "var(--navy-deep)", fontFamily: "var(--font-mono)" }}>{bp}</strong>
-                  </div>
-
-                  {/* Hb Pill */}
-                  <div style={{
-                    padding: "6px 12px",
-                    borderRadius: "var(--radius-md)",
-                    background: isSevereHb ? "var(--coral-bg)" : "var(--panel-pale)",
-                    border: isSevereHb ? "1px solid rgba(226, 123, 112, 0.5)" : "1px solid var(--rule-muted)",
-                    textAlign: "center"
-                  }}>
-                    <span style={{ fontSize: "0.625rem", color: "var(--text-muted)", display: "block", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>Haemoglobin</span>
-                    <strong style={{ fontSize: "0.95rem", color: isSevereHb ? "var(--coral-dark)" : "var(--navy-deep)", fontFamily: "var(--font-mono)" }}>{hb}</strong>
-                  </div>
-
-                  {/* Danger Signs Count Badge */}
-                  {dangerCount > 0 && (
-                    <div style={{
-                      padding: "6px 12px",
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--coral-bg)",
-                      border: "1px solid rgba(226, 123, 112, 0.4)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px"
-                    }}>
-                      <AlertTriangle size={13} color="var(--coral-dark)" />
-                      <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--coral-dark)" }}>
-                        {dangerCount} Danger Sign{dangerCount > 1 ? "s" : ""}
-                      </span>
-                    </div>
+                {/* Patient Metadata & Location Row */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "0.875rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--text-main)", fontWeight: 500 }}>
+                    <MapPin size={15} color="var(--primary-blue)" />
+                    {c.village}
+                  </span>
+                  {c.age_years && (
+                    <span>Age: <strong>{c.age_years} yrs</strong></span>
                   )}
-
-                  {/* Voice Note Artifact Badge */}
+                  {c.gestational_age_weeks && (
+                    <span>Gestation: <strong>{c.gestational_age_weeks} weeks</strong></span>
+                  )}
+                  {c.gravida !== null && c.gravida !== undefined && (
+                    <span>Gravida: <strong>G{c.gravida}P{c.para ?? 0}</strong></span>
+                  )}
                   {hasAudio && (
-                    <div style={{
-                      padding: "6px 10px",
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--panel-pale)",
-                      border: "1px solid var(--rule-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "0.75rem",
-                      color: "var(--navy-deep)",
-                      fontWeight: 600
-                    }}>
-                      <Mic size={13} color="var(--navy-deep)" />
-                      <span>Voice Note</span>
-                    </div>
+                    <span className="badge badge-blue">
+                      <Mic size={12} />
+                      Voice Note
+                    </span>
                   )}
-
                 </div>
 
-                {/* Right: Operational Status & Console Button */}
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                  
-                  {/* Action Status Pill */}
-                  <div style={{ textAlign: "right" }}>
-                    {c.ambulance_status ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--navy-deep)", fontSize: "0.8rem", fontWeight: 600 }}>
-                        <Truck size={14} />
-                        <span>108 Dispatched</span>
-                      </div>
-                    ) : c.doctor_advisory ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--seafoam-dark)", fontSize: "0.8rem", fontWeight: 600 }}>
-                        <Stethoscope size={14} />
-                        <span>Advisory Issued</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--amber-dark)", fontSize: "0.8rem", fontWeight: 600 }}>
-                        <Clock size={14} />
-                        <span>Pending Review</span>
-                      </div>
-                    )}
-                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                      {c.worker_id || "ASHA"}
+                {/* Clinical Vitals Row */}
+                <div className="vitals-row">
+                  <div className="vital-chip">
+                    <span className="vital-title">Blood Pressure</span>
+                    <span className={`vital-value ${isSevereBp ? "vital-danger" : ""}`}>
+                      {bp}
                     </span>
                   </div>
 
-                  {/* Open Case CTA */}
-                  <button
-                    className="btn-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectCase(c);
-                    }}
-                    style={{ padding: "8px 16px", fontSize: "0.825rem" }}
-                  >
-                    <span>Review</span>
-                    <ChevronRight size={14} />
-                  </button>
+                  <div className="vital-chip">
+                    <span className="vital-title">Haemoglobin</span>
+                    <span className={`vital-value ${isSevereHb ? "vital-danger" : ""}`}>
+                      {hb}
+                    </span>
+                  </div>
 
+                  {/* Danger Signs Tags */}
+                  {activeDangerSigns.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginLeft: "6px" }}>
+                      {activeDangerSigns.map((s, idx) => (
+                        <span key={idx} className="danger-tag">
+                          ⚠ {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Clinical Rationale Box */}
+                {c.assessment?.clinical_rationale && (
+                  <div className="case-rationale">
+                    <strong>Triage Assessment:</strong> {c.assessment.clinical_rationale}
+                  </div>
+                )}
+
+                {/* Card Bottom Bar */}
+                <div className="case-actions-bar">
+                  <div className="asha-info">
+                    <span>Frontline ASHA Worker:</span>
+                    <strong style={{ color: "var(--text-main)" }}>{c.worker_id || "ANM / Community ASHA"}</strong>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    {c.ambulance_status ? (
+                      <span className="badge badge-blue">
+                        <Truck size={13} />
+                        108 Status: {c.ambulance_status}
+                      </span>
+                    ) : c.doctor_advisory ? (
+                      <span className="badge badge-green">
+                        <Stethoscope size={13} />
+                        Advisory Issued
+                      </span>
+                    ) : (
+                      <span className="badge badge-amber">
+                        <Clock size={13} />
+                        Pending Clinical Guidance
+                      </span>
+                    )}
+                  </div>
                 </div>
 
               </div>
             );
-          })
-        )}
-      </div>
-
+          })}
+        </div>
+      )}
     </div>
   );
 };

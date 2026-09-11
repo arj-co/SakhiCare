@@ -5,6 +5,15 @@ import {
   escalateNotification,
   fetchCases
 } from "../api";
+import { 
+  Bell, 
+  Send, 
+  ShieldCheck, 
+  RefreshCw, 
+  Smartphone, 
+  Volume2, 
+  AlertTriangle 
+} from "lucide-react";
 
 interface NotificationCenterProps {
   userRole?: string;
@@ -78,7 +87,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
       case "SENT":
         return <span className="badge badge-blue">SENT (IN FLIGHT)</span>;
       case "NOT_CONFIGURED":
-        return <span className="badge badge-amber" title="No fake delivery without real provider receipt">NOT_CONFIGURED</span>;
+        return <span className="badge badge-amber" title="Provider API keys not configured">NOT CONFIGURED</span>;
       case "FAILED":
         return <span className="badge badge-red">FAILED</span>;
       case "QUEUED":
@@ -90,13 +99,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
   const getChannelBadge = (channel: string) => {
     switch (channel) {
       case "SMS":
-        return <span className="mono-badge">📱 SMS</span>;
+        return <span className="badge badge-blue"><Smartphone size={12} /> SMS</span>;
       case "PUSH":
-        return <span className="mono-badge">🔔 PUSH</span>;
+        return <span className="badge badge-blue"><Bell size={12} /> PUSH</span>;
       case "VOICE_CALL":
-        return <span className="mono-badge">📞 VOICE IVR</span>;
+        return <span className="badge badge-blue"><Volume2 size={12} /> VOICE IVR</span>;
       default:
-        return <span className="mono-badge">{channel}</span>;
+        return <span className="badge badge-gray">{channel}</span>;
     }
   };
 
@@ -108,148 +117,164 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ userRole
   const canEscalate = !userRole || ["MEDICAL_OFFICER", "ADMIN", "SUPERVISOR", "DISPATCHER"].includes(userRole);
 
   return (
-    <div className="section-container">
-      <div className="header-row">
+    <div>
+      {/* Title */}
+      <div className="page-title-row">
         <div>
-          <div className="technical-label" style={{ marginBottom: "4px" }}>
-            <span>03 / AUDITABLE TELECOMMUNICATIONS · TRUTHFUL ESCALATION</span>
-          </div>
-          <h2 className="title-primary">
-            Multi-Channel Escalation & <span className="editorial-italic">Delivery Center</span>
-          </h2>
-          <p className="subtitle">
-            Truthful provider delivery status tracking. Minimal privacy-safe SMS templates strictly omitting patient names.
+          <h1 className="page-title">Notification & Escalation Center</h1>
+          <p className="page-subtitle">
+            Auditable delivery logs across SMS gateways, OneSignal push notifications, and IVR voice broadcasts.
           </p>
         </div>
+
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <select
-            className="filter-select"
+            className="form-control"
+            style={{ width: "auto", fontSize: "0.8125rem", padding: "6px 12px" }}
             value={channelFilter}
             onChange={(e) => setChannelFilter(e.target.value)}
           >
-            <option value="ALL">All Channels</option>
+            <option value="ALL">All Delivery Channels</option>
             <option value="SMS">SMS Gateway</option>
-            <option value="PUSH">OneSignal Push</option>
+            <option value="PUSH">Push Notifications</option>
             <option value="VOICE_CALL">Voice Call IVR</option>
           </select>
-          <button className="btn-refresh" onClick={loadLogs}>
-            🔄 Refresh
+
+          <button className="btn btn-secondary btn-sm" onClick={loadLogs}>
+            <RefreshCw size={14} />
+            <span>Refresh</span>
           </button>
         </div>
       </div>
 
-      {error && <div className="error-banner">⚠️ {error}</div>}
-      {escalateSuccess && <div className="success-banner">🚀 {escalateSuccess}</div>}
+      {error && <div className="alert alert-danger">⚠️ {error}</div>}
+      {escalateSuccess && <div className="alert alert-success">🚀 {escalateSuccess}</div>}
 
-      {/* Manual Escalation Bar */}
+      {/* Manual Emergency Escalation Bar */}
       {canEscalate && urgentCases.length > 0 && (
-        <div className="escalation-bar">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 600, color: "#991b1b" }}>⚡ Emergency Escalation Trigger:</span>
-            <select
-              value={selectedCaseId}
-              onChange={(e) => setSelectedCaseId(e.target.value)}
-              className="form-input"
-              style={{ minWidth: "220px" }}
-            >
-              {urgentCases.map((c) => (
-                <option key={c.case_id} value={c.case_id}>
-                  {c.case_id} — {c.patient_name} ({c.village}) [RED]
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn-escalate"
-              onClick={handleTriggerEscalation}
-              disabled={escalating}
-            >
-              {escalating ? "Dispatching..." : "Dispatch Multi-Channel Escalation"}
-            </button>
+        <div style={{ background: "var(--red-bg)", border: "1px solid var(--red-border)", borderRadius: "var(--radius-lg)", padding: "16px 20px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertTriangle size={18} color="var(--red-primary)" />
+              <strong style={{ color: "var(--red-text)", fontSize: "0.9rem" }}>
+                Emergency Multi-Channel Escalation:
+              </strong>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <select
+                value={selectedCaseId}
+                onChange={(e) => setSelectedCaseId(e.target.value)}
+                className="form-control"
+                style={{ width: "auto", fontSize: "0.85rem" }}
+              >
+                {urgentCases.map((c) => (
+                  <option key={c.case_id} value={c.case_id}>
+                    {c.case_id} — {c.patient_name} ({c.village}) [RED]
+                  </option>
+                ))}
+              </select>
+
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleTriggerEscalation}
+                disabled={escalating}
+              >
+                <Send size={13} />
+                <span>{escalating ? "Dispatching..." : "Trigger Emergency Escalation"}</span>
+              </button>
+            </div>
           </div>
-          <small style={{ color: "#64748b", marginTop: "4px", display: "block" }}>
-            Triggers Primary Push + Minimal SMS + Automatic Block Supervisor fallback if unconfirmed.
-          </small>
+          <div style={{ fontSize: "0.75rem", color: "var(--red-text)", marginTop: "6px" }}>
+            Dispatches primary push alert + minimal SMS. Triggers automatic fallback alert to Block Supervisor if unacknowledged.
+          </div>
         </div>
       )}
 
-      {/* Privacy Notice Alert */}
-      <div className="privacy-notice-box">
-        <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "4px" }}>
-          🔒 MoHFW / DISHA Patient Privacy Enforcement:
+      {/* MoHFW Privacy Assurance Notice */}
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", padding: "14px 18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <ShieldCheck size={20} color="var(--primary-blue)" />
+        <div style={{ fontSize: "0.8125rem", color: "var(--text-body)" }}>
+          <strong>MoHFW / DISHA Patient Data Privacy:</strong> Unencrypted SMS payloads strictly omit patient legal names. Only Case ID, risk level, village, and callback phone numbers are sent over telecommunication networks.
         </div>
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "#475569" }}>
-          Unencrypted SMS notifications strictly exclude the patient's full legal name and detailed identity.
-          Only Case ID, Risk Urgency, Village, and Callback Contact are transmitted over public telecommunications networks.
-        </p>
       </div>
 
-      {loading ? (
-        <div className="loading-state">Loading notification dispatch logs...</div>
-      ) : filteredLogs.length === 0 ? (
-        <div className="empty-state">
-          <p>No notification dispatch logs recorded yet.</p>
-          <p className="subtle">Triggering a case triage or emergency sync will log outgoing multi-channel dispatches here.</p>
-        </div>
-      ) : (
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Case ID</th>
-                <th>Channel</th>
-                <th>Recipient</th>
-                <th>Truthful Status</th>
-                <th>Message Content Preview</th>
-                <th>Provider / Escalation Audit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.map((l) => (
-                <tr key={l.id}>
-                  <td className="subtle-code">{formatTimestamp(l.created_at)}</td>
-                  <td>
-                    <a
-                      href={`#case-${l.case_id}`}
-                      className="subtle-code"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (onSelectCase) onSelectCase(l.case_id);
-                      }}
-                    >
-                      {l.case_id}
-                    </a>
-                  </td>
-                  <td>{getChannelBadge(l.channel)}</td>
-                  <td className="subtle-code">{l.recipient}</td>
-                  <td>{getStatusBadge(l.status)}</td>
-                  <td style={{ maxWidth: "320px" }}>
-                    <div className="text-notes" style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
-                      {l.content_preview}
-                    </div>
-                  </td>
-                  <td>
-                    {l.escalated_to && (
-                      <span className="badge badge-amber" style={{ marginRight: "6px" }}>
-                        Escalated: {l.escalated_to}
-                      </span>
-                    )}
-                    {l.provider_ref ? (
-                      <span className="subtle-code">Ref: {l.provider_ref}</span>
-                    ) : l.error_message ? (
-                      <span className="subtle" title={l.error_message} style={{ color: "#d97706" }}>
-                        ⚠️ {l.error_message.slice(0, 40)}...
-                      </span>
-                    ) : (
-                      <span className="subtle">—</span>
-                    )}
-                  </td>
+      {/* Logs Table */}
+      <div className="table-card">
+        {loading ? (
+          <div className="empty-state">Loading notification dispatch logs...</div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="empty-state">
+            <Bell size={36} className="empty-state-icon" />
+            <h3>No notification dispatches logged</h3>
+            <p>Outgoing push, SMS, and voice alerts will be logged here.</p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="app-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Case ID</th>
+                  <th>Channel</th>
+                  <th>Recipient</th>
+                  <th>Status</th>
+                  <th>Message Preview</th>
+                  <th>Audit Reference</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {filteredLogs.map((l) => (
+                  <tr key={l.id}>
+                    <td style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                      {formatTimestamp(l.created_at)}
+                    </td>
+                    <td>
+                      <a
+                        href={`#case-${l.case_id}`}
+                        className="case-id-code"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (onSelectCase) onSelectCase(l.case_id);
+                        }}
+                      >
+                        {l.case_id}
+                      </a>
+                    </td>
+                    <td>{getChannelBadge(l.channel)}</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
+                      {l.recipient}
+                    </td>
+                    <td>{getStatusBadge(l.status)}</td>
+                    <td style={{ maxWidth: "340px" }}>
+                      <div style={{ fontSize: "0.8rem", fontFamily: "var(--font-mono)", color: "var(--text-body)" }}>
+                        {l.content_preview}
+                      </div>
+                    </td>
+                    <td>
+                      {l.escalated_to && (
+                        <span className="badge badge-amber" style={{ marginRight: "6px" }}>
+                          Escalated: {l.escalated_to}
+                        </span>
+                      )}
+                      {l.provider_ref ? (
+                        <span className="case-id-code">Ref: {l.provider_ref}</span>
+                      ) : l.error_message ? (
+                        <span style={{ fontSize: "0.75rem", color: "var(--amber-primary)" }} title={l.error_message}>
+                          ⚠ {l.error_message.slice(0, 35)}...
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-light)" }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 };

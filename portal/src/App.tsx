@@ -9,10 +9,11 @@ import { WorkerRoster } from "./components/WorkerRoster";
 import { ClinicalProtocols } from "./components/ClinicalProtocols";
 import { TransportBoard } from "./components/TransportBoard";
 import { NotificationCenter } from "./components/NotificationCenter";
+import { AlertCircle, AlertTriangle, CheckCircle, FolderHeart } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Pre-configured default users for role-based switching
+// Standard pre-configured demo users for role switching
 const DEFAULT_USERS: Record<UserProfile["role"], UserProfile> = {
   MEDICAL_OFFICER: {
     id: "usr_mo_01",
@@ -57,12 +58,11 @@ export const App: React.FC = () => {
   const [isLive, setIsLive] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Authenticate user when role is changed
+  // Authenticate user when role changes
   const handleRoleChange = async (role: UserProfile["role"]) => {
     const targetUser = DEFAULT_USERS[role];
     setCurrentUser(targetUser);
 
-    // Attempt login to acquire real backend JWT for this role
     try {
       const passwords: Record<string, string> = {
         doctor_sharma: "DoctorPass123!",
@@ -72,7 +72,7 @@ export const App: React.FC = () => {
       };
       await login(targetUser.username, passwords[targetUser.username] || "Password123!");
     } catch (err) {
-      console.warn("Backend auth offline or using fallback token", err);
+      console.warn("Backend auth notice, using cached session token", err);
     }
   };
 
@@ -92,12 +92,11 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Initial login as doctor
     handleRoleChange("MEDICAL_OFFICER");
     loadCases();
   }, [loadCases]);
 
-  // Connect to SSE live stream for real-time queue updates
+  // Connect to SSE live stream for real-time updates
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
@@ -132,7 +131,7 @@ export const App: React.FC = () => {
               );
             }
           } catch (err) {
-            // Heartbeat or parse error
+            // Heartbeat
           }
         };
 
@@ -156,9 +155,12 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Compute critical RED cases count for navbar badge
-  const criticalCount = useMemo(() => {
-    return cases.filter((c) => c.assessment?.risk_level === "RED").length;
+  // Summary counts
+  const stats = useMemo(() => {
+    const red = cases.filter((c) => c.assessment?.risk_level === "RED").length;
+    const amber = cases.filter((c) => c.assessment?.risk_level === "AMBER").length;
+    const green = cases.filter((c) => c.assessment?.risk_level === "GREEN").length;
+    return { red, amber, green, total: cases.length };
   }, [cases]);
 
   // Callback when a case is updated inside modal
@@ -171,71 +173,80 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      
-      {/* Top Glass Navigation Bar */}
+    <div className="app-container">
+      {/* Clean Navbar */}
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         currentUser={currentUser}
         onChangeRole={handleRoleChange}
-        criticalCount={criticalCount}
-        totalCases={cases.length}
+        criticalCount={stats.red}
+        totalCases={stats.total}
         isLive={isLive}
         onRefresh={loadCases}
       />
 
-      {/* Main Screen Content */}
-      <main style={{ flex: 1 }}>
-        {/* Editorial Statement Header */}
-        <div className="hero-editorial-bar">
-          <div>
-            <div className="technical-label" style={{ marginBottom: "6px" }}>
-              <span>SYSTEM · MATERNAL CLINICAL RESPONSE</span>
-            </div>
-            <div className="hero-statement">
-              Quiet intelligence, <span className="editorial-italic">made personal</span>.
-            </div>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "4px", maxWidth: "620px" }}>
-              Frontline ASHA screening with verified offline parity, auditable 108 transport coordination, and clinical decision support under your control.
-            </p>
-          </div>
-          <div className="hero-editorial-meta">
-            <div className="hero-meta-chip">
-              <span style={{ color: "var(--coral-dark)", fontWeight: 700 }}>●</span>
-              <span>{criticalCount} Critical Cases</span>
-            </div>
-            <div className="hero-meta-chip">
-              <span style={{ color: "var(--seafoam-dark)", fontWeight: 700 }}>●</span>
-              <span>MoHFW v1.0 Protocol</span>
-            </div>
-            <div className="hero-meta-chip">
-              <span style={{ color: "var(--navy-deep)", fontWeight: 700 }}>●</span>
-              <span>{cases.length} Synced Records</span>
-            </div>
-          </div>
-        </div>
-
+      {/* Main Content Area */}
+      <main className="main-content">
+        {/* Error Alert banner if backend unreachable */}
         {errorMessage && (
-          <div style={{
-            margin: "0 28px 20px 28px",
-            padding: "12px 16px",
-            borderRadius: "var(--radius-md)",
-            background: "var(--coral-bg)",
-            border: "1px solid rgba(226, 123, 112, 0.4)",
-            color: "var(--coral-dark)",
-            fontSize: "0.85rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between"
-          }}>
-            <span>⚠️ Backend connection notice: {errorMessage} (Displaying cached/local queue)</span>
-            <button onClick={loadCases} className="btn-outline" style={{ fontSize: "0.75rem", padding: "4px 12px" }}>
-              Retry
+          <div className="alert alert-warning">
+            <AlertCircle size={18} />
+            <div style={{ flex: 1 }}>
+              <strong>Notice:</strong> {errorMessage} (Displaying locally cached records)
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={loadCases}>
+              Retry Connection
             </button>
           </div>
         )}
 
+        {/* Global Stats Overview (shown on queue tab) */}
+        {currentTab === "queue" && (
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-info">
+                <span className="stat-label">Total Cases</span>
+                <span className="stat-value">{stats.total}</span>
+              </div>
+              <div className="stat-icon-wrapper stat-icon-blue">
+                <FolderHeart size={22} />
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-info">
+                <span className="stat-label">Critical Emergency (RED)</span>
+                <span className="stat-value" style={{ color: "var(--red-primary)" }}>{stats.red}</span>
+              </div>
+              <div className="stat-icon-wrapper stat-icon-red">
+                <AlertCircle size={22} />
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-info">
+                <span className="stat-label">Moderate Risk (AMBER)</span>
+                <span className="stat-value" style={{ color: "var(--amber-primary)" }}>{stats.amber}</span>
+              </div>
+              <div className="stat-icon-wrapper stat-icon-amber">
+                <AlertTriangle size={22} />
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-info">
+                <span className="stat-label">Routine Care (GREEN)</span>
+                <span className="stat-value" style={{ color: "var(--green-primary)" }}>{stats.green}</span>
+              </div>
+              <div className="stat-icon-wrapper stat-icon-green">
+                <CheckCircle size={22} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Views */}
         {currentTab === "queue" && (
           <UrgentQueue
             cases={cases}
@@ -244,12 +255,6 @@ export const App: React.FC = () => {
             onSelectCase={(c) => setSelectedCase(c)}
           />
         )}
-
-        {currentTab === "facilities" && <FacilityRoster />}
-
-        {currentTab === "workers" && <WorkerRoster />}
-
-        {currentTab === "protocols" && <ClinicalProtocols />}
 
         {currentTab === "transport" && (
           <TransportBoard
@@ -270,9 +275,15 @@ export const App: React.FC = () => {
             }}
           />
         )}
+
+        {currentTab === "facilities" && <FacilityRoster />}
+
+        {currentTab === "workers" && <WorkerRoster />}
+
+        {currentTab === "protocols" && <ClinicalProtocols />}
       </main>
 
-      {/* Case Detail Console Modal */}
+      {/* Case Detail Modal */}
       {selectedCase && (
         <CaseDetailModal
           caseItem={selectedCase}
@@ -282,38 +293,19 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Editorial Footer */}
-      <footer style={{
-        padding: "20px 28px",
-        borderTop: "1px solid var(--rule-muted)",
-        background: "var(--panel-pale)",
-        fontSize: "0.78rem",
-        color: "var(--text-muted)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: "14px"
-      }}>
-        <div>
-          <span style={{ color: "var(--navy-deep)", fontWeight: 600 }}>SakhiCare</span>
-          <span> — Point-of-Care Maternal Danger-Sign Screening & Response Platform • </span>
-          <span style={{ fontFamily: "var(--font-mono)", color: "var(--navy-deep)" }}>MOHFW-HRP-V1.0</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", fontFamily: "var(--font-mono)", fontSize: "0.72rem" }}>
-          <span>Offline SQLCipher</span>
-          <span>•</span>
-          <span>Durable Sync</span>
-          <span>•</span>
-          <span>FHIR R4</span>
-          <span>•</span>
-          <span>108 Coordination</span>
+      {/* Clean Modern Footer */}
+      <footer className="app-footer">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", maxWidth: "1320px", margin: "0 auto" }}>
+          <div>
+            <strong>SakhiCare</strong> Care Desk — Maternal Danger-Sign Screening & Response Platform (MoHFW v1.0)
+          </div>
+          <div>
+            <span>Offline-First Android App</span> &bull; <span>108 Transport Hub</span> &bull; <span>FHIR R4 Compliant</span>
+          </div>
         </div>
       </footer>
-
     </div>
   );
 };
 
 export default App;
-
