@@ -1,4 +1,4 @@
-# SakhiCare
+# SakhiCare project
 
 **An offline-first maternal healthcare assessment and triage platform for frontline health workers in rural settings.**
 
