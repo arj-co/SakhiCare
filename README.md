@@ -3,7 +3,6 @@
 **An offline-first maternal healthcare assessment and triage platform for frontline health workers in rural settings.**
 
 SakhiCare empowers Auxiliary Nurse Midwives (ANMs) and Accredited Social Health Activists (ASHAs) with instant clinical danger sign triage, offline case logging, and background server synchronization. It brings low-latency decision support to remote clinical encounters.
-
 ---
 
 <div align="left">
